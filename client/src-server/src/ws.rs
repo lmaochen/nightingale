@@ -591,9 +591,6 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                     if !s.karaoke_enabled {
                         return;
                     }
-                    if s.host != Some(client_id) {
-                        return;
-                    }
 
                     let normalized_status = status.trim().to_lowercase();
                     if normalized_status.is_empty() {
