@@ -559,6 +559,11 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                     }
                 })
                 .await;
+            if let Some(guide_volume) = guide_volume {
+                let mut config = app_core::AppConfig::load();
+                config.guide_volume = Some(guide_volume.clamp(0.0, 1.0));
+                config.save();
+            }
             broadcast_jukebox(state, &next);
         }
         ClientFrame::AdminAction { action } => {
