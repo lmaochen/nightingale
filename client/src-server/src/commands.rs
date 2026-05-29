@@ -304,6 +304,7 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
         }
         "ensure_mp3_stems" => ensure_mp3_stems_cmd(events, payload),
         "warm_stems_cache" => Ok(Value::Bool(app_core::warm_stems_cache_background())),
+        "warm_server_pcm_cache" => Ok(Value::Bool(app_core::warm_server_pcm_cache_background())),
         "ensure_playable_source_video" => {
             let args: FileHashArgs = deserialize(payload)?;
             let path = app_core::ensure_playable_source_video(&args.file_hash)
