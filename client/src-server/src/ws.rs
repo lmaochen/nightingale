@@ -199,6 +199,11 @@ struct DenyMessage {
 
 fn queue_identity(song: &Value) -> Option<String> {
     let obj = song.as_object()?;
+    if let Some(file_hash) = obj.get("file_hash").and_then(Value::as_str) {
+        if !file_hash.trim().is_empty() {
+            return Some(format!("file_hash:{}", file_hash.trim()));
+        }
+    }
     if let Some(song_id) = obj.get("song_id").and_then(Value::as_str) {
         if !song_id.trim().is_empty() {
             return Some(format!("song_id:{}", song_id.trim()));
@@ -407,22 +412,33 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                     let id = s.next_queue_item_id;
                     s.next_queue_item_id = s.next_queue_item_id.saturating_add(1);
                     let title = song
-                        .get("name")
+                        .get("title")
                         .and_then(Value::as_str)
                         .filter(|s| !s.trim().is_empty())
+                        .or_else(|| {
+                            song.get("name")
+                                .and_then(Value::as_str)
+                                .filter(|s| !s.trim().is_empty())
+                        })
                         .unwrap_or("Unknown title")
                         .to_string();
                     let artist = song
-                        .get("artists")
-                        .and_then(Value::as_array)
-                        .map(|arr| {
-                            arr.iter()
-                                .filter_map(Value::as_str)
-                                .filter(|s| !s.trim().is_empty())
-                                .collect::<Vec<_>>()
-                                .join(", ")
+                        .get("artist")
+                        .and_then(Value::as_str)
+                        .filter(|s| !s.trim().is_empty())
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            song.get("artists")
+                                .and_then(Value::as_array)
+                                .map(|arr| {
+                                    arr.iter()
+                                        .filter_map(Value::as_str)
+                                        .filter(|s| !s.trim().is_empty())
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                })
+                                .filter(|s| !s.is_empty())
                         })
-                        .filter(|s| !s.is_empty())
                         .unwrap_or_else(|| "Unknown artist".to_string());
 
                     s.queue.push(JukeboxQueueItem {
@@ -434,6 +450,14 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                         added_at_ms: now_ms(),
                         song,
                     });
+
+                    if s.current_song.is_none() {
+                        s.current_song = s.queue.last().map(|item| {
+                            queue_identity(&item.song).unwrap_or_else(|| item.title.clone())
+                        });
+                        s.paused = false;
+                        s.position_ms = 0;
+                    }
                 })
                 .await;
             broadcast_jukebox(state, &next);
@@ -544,21 +568,29 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                     if !s.karaoke_enabled {
                         return;
                     }
-                    if !can_admin(s, client_id) {
-                        return;
-                    }
                     match action {
-                        "clear-queue" => s.queue.clear(),
+                        "clear-queue" => {
+                            if can_admin(s, client_id) {
+                                s.queue.clear()
+                            }
+                        }
                         "next-song" => {
+                            if !can_control(s, client_id) {
+                                return;
+                            }
                             if !s.queue.is_empty() {
                                 let item = s.queue.remove(0);
-                                s.current_song = Some(item.title);
+                                s.current_song = queue_identity(&item.song).or(Some(item.title));
                                 s.position_ms = 0;
                                 s.paused = false;
+                            } else {
+                                s.current_song = None;
                             }
                         }
                         "rescan-library" => {
-                            should_trigger_scan = true;
+                            if can_admin(s, client_id) {
+                                should_trigger_scan = true;
+                            }
                         }
                         _ => {}
                     }

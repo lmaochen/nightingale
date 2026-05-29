@@ -11,6 +11,19 @@ function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function resolveSongRef(songRef: string, songs: Song[]) {
+  if (!songRef.trim()) return null;
+  if (songRef.startsWith("file_hash:")) {
+    const hash = songRef.slice("file_hash:".length).trim();
+    return songs.find((song) => song.file_hash === hash) ?? null;
+  }
+  if (songRef.startsWith("song_id:") || songRef.startsWith("url:")) {
+    return null;
+  }
+  const normalizedRef = normalize(songRef);
+  return songs.find((song) => normalize(song.title) === normalizedRef) ?? null;
+}
+
 function resolveQueuedSong(queueItem: { title: string; artist: string; song: Record<string, unknown> }, songs: Song[]) {
   const explicitHash = queueItem.song.file_hash;
   if (typeof explicitHash === "string") {
@@ -50,6 +63,12 @@ export function useKaraokeHostAutoplay() {
   const navigate = useNavigate();
   const location = useLocation();
   const launchingRef = useRef(false);
+  const currentPlaybackHash =
+    location.pathname === "/playback" &&
+    location.state &&
+    typeof (location.state as { song?: Song }).song?.file_hash === "string"
+      ? (location.state as { song: Song }).song.file_hash
+      : null;
 
   const { data: songsData } = useQuery({
     queryKey: ["karaoke-host-autoplay-songs"],
@@ -67,24 +86,33 @@ export function useKaraokeHostAutoplay() {
 
   useEffect(() => {
     if (!snapshot || !me || me.role !== "host") return;
-    if (location.pathname === "/playback") return;
-    if (snapshot.queue.length === 0) return;
     if (launchingRef.current) return;
 
-    const nextQueued = snapshot.queue[0];
-    const matchedSong = resolveQueuedSong(nextQueued, songs);
-    if (!matchedSong) return;
+    let targetSong: Song | null = null;
+    if (snapshot.current_song) {
+      targetSong = resolveSongRef(snapshot.current_song, songs);
+    }
+
+    if (!targetSong && !snapshot.current_song && snapshot.queue.length > 0) {
+      const nextQueued = snapshot.queue[0];
+      targetSong = resolveQueuedSong(nextQueued, songs);
+      if (targetSong) {
+        actions.patchPlayback({
+          currentSong: `file_hash:${targetSong.file_hash}`,
+          paused: false,
+          positionMs: 0,
+        });
+        actions.removeFromQueue(nextQueued.id);
+      }
+    }
+
+    if (!targetSong) return;
+    if (currentPlaybackHash === targetSong.file_hash) return;
 
     launchingRef.current = true;
-    actions.patchPlayback({
-      currentSong: matchedSong.title,
-      paused: false,
-      positionMs: 0,
-    });
-    actions.removeFromQueue(nextQueued.id);
-    navigate("/playback", { state: { song: matchedSong } });
+    navigate("/playback", { state: { song: targetSong } });
     window.setTimeout(() => {
       launchingRef.current = false;
     }, 800);
-  }, [actions, location.pathname, me, navigate, snapshot, songs]);
+  }, [actions, currentPlaybackHash, me, navigate, snapshot, songs]);
 }

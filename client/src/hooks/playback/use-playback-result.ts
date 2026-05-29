@@ -80,7 +80,7 @@ export function usePlaybackResult(song: Song): PlaybackResult {
     clearSkipOutroPending();
 
     const returnToHost = shouldReturnToHostRoute();
-    const returnRoute = returnToHost ? "/host" : "/";
+    const returnRoute = returnToHost ? "/host?autoNext=1" : "/";
 
     // Venue flow: host sessions should move straight back to host control,
     // where the next queued song can auto-launch without result interruptions.

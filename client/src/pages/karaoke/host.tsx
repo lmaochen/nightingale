@@ -1,22 +1,25 @@
-import { downtifySearchSongs, type DowntifySong } from "@/bridge/downtify";
+import { loadSongs } from "@/bridge/songs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import { useConfig } from "@/queries/use-config";
+import type { Song } from "@/types/Song";
 import { ArrowLeftIcon, Loader2Icon } from "lucide-react";
-import { FormEvent, useState } from "react";
-import { Link } from "react-router";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 
 const DEFAULT_HOST_NAME = "Host";
 
 export function KaraokeHostPage() {
   const { data: config } = useConfig();
   const { connected, snapshot, actions, me } = useJukeboxSession();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [name, setName] = useState(config?.karaoke_display_name ?? DEFAULT_HOST_NAME);
   const [pin, setPin] = useState(config?.karaoke_pin ?? "1234");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<DowntifySong[]>([]);
+  const [results, setResults] = useState<Song[]>([]);
+  const autoNextHandledRef = useRef(false);
 
   const handleJoinHost = () => {
     actions.join(pin, name.trim() || DEFAULT_HOST_NAME, true);
@@ -28,7 +31,13 @@ export function KaraokeHostPage() {
     if (!q) return;
     setSearching(true);
     try {
-      setResults(await downtifySearchSongs(q));
+      const result = await loadSongs({
+        search: q,
+        filters: { artist: null, album: null, query: null },
+        skip: 0,
+        take: 40,
+      });
+      setResults(result.processed);
     } finally {
       setSearching(false);
     }
@@ -37,6 +46,17 @@ export function KaraokeHostPage() {
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
+
+  useEffect(() => {
+    const shouldAutoNext = searchParams.get("autoNext") === "1";
+    if (!shouldAutoNext || autoNextHandledRef.current || me?.role !== "host") return;
+
+    autoNextHandledRef.current = true;
+    actions.adminAction("next-song");
+    const next = new URLSearchParams(searchParams);
+    next.delete("autoNext");
+    setSearchParams(next, { replace: true });
+  }, [actions, me?.role, searchParams, setSearchParams]);
 
   return (
     <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
@@ -60,7 +80,7 @@ export function KaraokeHostPage() {
             <p className="text-sm text-muted-foreground">Host role: {me?.role ?? "not joined"}</p>
           </div>
 
-          <div id="host-queue" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
+          <div className="rounded-lg border border-border/60 p-4 scroll-mt-20">
             <p className="text-sm font-medium">Host session</p>
             <div className="mt-2 space-y-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Host name" />
@@ -73,7 +93,7 @@ export function KaraokeHostPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div id="host-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
+          <div id="host-queue" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
             <h2 className="text-lg font-semibold">Queue</h2>
             <div className="mt-3 space-y-2">
               {(snapshot?.queue ?? []).map((item, idx) => (
@@ -118,7 +138,7 @@ export function KaraokeHostPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border/60 p-4">
+          <div id="host-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
             <h2 className="text-lg font-semibold">Host Controls</h2>
             <div className="mt-3 grid grid-cols-2 gap-2 md:flex md:flex-wrap">
               <Button
@@ -162,7 +182,7 @@ export function KaraokeHostPage() {
         </div>
 
         <div id="host-search" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
-          <h2 className="text-lg font-semibold">Add Song (Downtify Search)</h2>
+          <h2 className="text-lg font-semibold">Add Song (Nightingale Library)</h2>
           <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search songs..." />
             <Button type="submit" className="w-full sm:w-auto" disabled={searching || !query.trim()}>
@@ -171,10 +191,10 @@ export function KaraokeHostPage() {
           </form>
           <div className="mt-3 grid gap-2 max-h-[48vh] overflow-y-auto pr-1">
             {results.map((song) => {
-              const title = typeof song.name === "string" ? song.name : "Unknown title";
-              const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
+              const title = song.title || "Unknown title";
+              const artists = song.artist || "Unknown artist";
               return (
-                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
+                <div key={song.file_hash} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{title}</p>
                     <p className="truncate text-xs text-muted-foreground">{artists}</p>
@@ -183,7 +203,7 @@ export function KaraokeHostPage() {
                     size="sm"
                     variant="outline"
                     className="w-full sm:w-auto"
-                    onClick={() => actions.addToQueue(song as Record<string, unknown>)}
+                    onClick={() => actions.addToQueue(song as unknown as Record<string, unknown>)}
                   >
                     Add
                   </Button>

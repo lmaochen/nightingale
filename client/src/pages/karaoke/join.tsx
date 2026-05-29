@@ -1,7 +1,8 @@
-import { downtifySearchSongs, type DowntifySong } from "@/bridge/downtify";
+import { loadSongs } from "@/bridge/songs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
+import type { Song } from "@/types/Song";
 import { Loader2Icon } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
@@ -13,7 +14,7 @@ export function KaraokeJoinPage() {
   const [pin, setPin] = useState("");
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<DowntifySong[]>([]);
+  const [results, setResults] = useState<Song[]>([]);
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
@@ -30,7 +31,13 @@ export function KaraokeJoinPage() {
     if (!q) return;
     setSearching(true);
     try {
-      setResults(await downtifySearchSongs(q));
+      const result = await loadSongs({
+        search: q,
+        filters: { artist: null, album: null, query: null },
+        skip: 0,
+        take: 60,
+      });
+      setResults(result.processed);
     } finally {
       setSearching(false);
     }
@@ -62,7 +69,7 @@ export function KaraokeJoinPage() {
         </div>
 
         <div id="join-search" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
-          <h2 className="text-lg font-semibold">Search and Add Songs</h2>
+          <h2 className="text-lg font-semibold">Search Nightingale Library</h2>
           <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
               value={query}
@@ -76,10 +83,10 @@ export function KaraokeJoinPage() {
           </form>
           <div className="mt-3 grid gap-2 max-h-[46vh] overflow-y-auto pr-1">
             {results.map((song) => {
-              const title = typeof song.name === "string" ? song.name : "Unknown title";
-              const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
+              const title = song.title || "Unknown title";
+              const artists = song.artist || "Unknown artist";
               return (
-                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
+                <div key={song.file_hash} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{title}</p>
                     <p className="truncate text-xs text-muted-foreground">{artists}</p>
@@ -89,7 +96,7 @@ export function KaraokeJoinPage() {
                     variant="outline"
                     className="w-full sm:w-auto"
                     disabled={!me}
-                    onClick={() => actions.addToQueue(song as Record<string, unknown>)}
+                    onClick={() => actions.addToQueue(song as unknown as Record<string, unknown>)}
                   >
                     Add
                   </Button>
@@ -112,6 +119,14 @@ export function KaraokeJoinPage() {
               onClick={() => actions.patchPlayback({ paused: !(snapshot?.paused ?? false) })}
             >
               {snapshot?.paused ? "Resume" : "Pause"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full md:w-auto"
+              disabled={!canControl}
+              onClick={() => actions.adminAction("next-song")}
+            >
+              Skip Song
             </Button>
             <Button
               variant="outline"

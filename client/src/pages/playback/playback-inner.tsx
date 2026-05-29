@@ -23,6 +23,7 @@ import { usePlaybackInput, usePlaybackResult } from "@/hooks/playback";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import type { Song } from "@/types/Song";
+import { useEffect } from "react";
 
 export interface PlaybackInnerProps {
   song: Song;
@@ -36,13 +37,24 @@ interface PlaybackLayoutProps {
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   const { isReady, paused } = usePlaybackTransportState();
-  const { handleContinue, handleExit } = usePlaybackTransportActions();
+  const { handleContinue, handleExit, handlePause } = usePlaybackTransportActions();
   const { segments } = usePlaybackTranscriptState();
   const { series } = usePlaybackMicState();
   const { snapshot } = useJukeboxSession({ autoJoinPersistedIntent: false });
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
+
+  useEffect(() => {
+    if (!isReady || !snapshot) return;
+    if (snapshot.paused && !paused) {
+      handlePause();
+      return;
+    }
+    if (!snapshot.paused && paused) {
+      handleContinue();
+    }
+  }, [handleContinue, handlePause, isReady, paused, snapshot]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>
