@@ -67,6 +67,7 @@ const LYRICS_FONT_SCALE_MAX = 2;
 const LYRICS_FONT_SCALE_STEP = 0.05;
 const DEFAULT_PLAYBACK_PERFORMANCE_MODE = false;
 const DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH = true;
+const DEFAULT_PLAYBACK_AUDIO_DECODE_MODE = "client_mp3";
 const DEFAULT_AUTO_RESCAN_SECONDS = 0;
 const AUTO_RESCAN_SECONDS_MIN = 0;
 const AUTO_RESCAN_SECONDS_MAX = 3600;
@@ -243,6 +244,10 @@ export const SettingsDialog = () => {
     config?.playback_performance_mode ?? DEFAULT_PLAYBACK_PERFORMANCE_MODE;
   const playbackShowPitchGraph =
     config?.playback_show_pitch_graph ?? DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH;
+  const playbackAudioDecodeMode =
+    config?.playback_audio_decode_mode === "server_pcm"
+      ? "server_pcm"
+      : DEFAULT_PLAYBACK_AUDIO_DECODE_MODE;
   const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
@@ -494,6 +499,27 @@ export const SettingsDialog = () => {
               </ButtonGroup>
             </Field>
             <Field>
+              <Label>Playback Audio Decode</Label>
+              <FieldDescription>
+                Client MP3 uses browser decode; Server PCM serves preconverted WAV stems to reduce
+                decode load on weak tablets
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackAudioDecodeMode === "client_mp3" ? "default" : "outline"}
+                  onClick={() => mutate({ playback_audio_decode_mode: "client_mp3" })}
+                >
+                  Client MP3
+                </Button>
+                <Button
+                  variant={playbackAudioDecodeMode === "server_pcm" ? "default" : "outline"}
+                  onClick={() => mutate({ playback_audio_decode_mode: "server_pcm" })}
+                >
+                  Server PCM
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
               <Label>Auto Rescan Library</Label>
               <FieldDescription>
                 Automatically rescan your library every{" "}
@@ -670,6 +696,7 @@ export const SettingsDialog = () => {
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                   playback_performance_mode: DEFAULT_PLAYBACK_PERFORMANCE_MODE,
                   playback_show_pitch_graph: DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH,
+                  playback_audio_decode_mode: DEFAULT_PLAYBACK_AUDIO_DECODE_MODE,
                 })
               }
               className={generateRingClassName(footerSegment, 0)}

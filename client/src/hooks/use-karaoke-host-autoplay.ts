@@ -2,6 +2,7 @@ import { loadSongs } from "@/bridge/songs";
 import { ensureMp3Stems } from "@/bridge/playback";
 import { prewarmPlaybackAudio } from "@/hooks/use-audio-player";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
+import { useConfig } from "@/queries/use-config";
 import type { Song } from "@/types/Song";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -63,6 +64,7 @@ function resolveQueuedSong(queueItem: { title: string; artist: string; song: Rec
  */
 export function useKaraokeHostAutoplay() {
   const { snapshot, actions } = useJukeboxSession({ autoJoinPersistedIntent: false });
+  const { data: config } = useConfig();
   const navigate = useNavigate();
   const location = useLocation();
   const autoNextRequested =
@@ -105,6 +107,7 @@ export function useKaraokeHostAutoplay() {
   });
 
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
+  const performanceMode = config?.playback_performance_mode ?? false;
 
   const reportDecodeStatus = useCallback(
     (fileHash: string | null, status: "cold" | "warming" | "warm" | "failed", error?: string) => {
@@ -122,6 +125,11 @@ export function useKaraokeHostAutoplay() {
 
   useEffect(() => {
     if (!snapshot || !isHostRuntime) return;
+    const isActivelyPlaying = Boolean(snapshot.current_song) && snapshot.paused === false;
+    if (!isActivelyPlaying) {
+      reportDecodeStatus(null, "cold");
+      return;
+    }
     if (snapshot.queue.length === 0) {
       reportDecodeStatus(null, "cold");
       return;
@@ -154,7 +162,7 @@ export function useKaraokeHostAutoplay() {
       ensureMp3Stems(hash);
       reportDecodeStatus(hash, "warming");
       const attemptPrewarm = (attempt: number) => {
-        void prewarmPlaybackAudio(hash)
+        void prewarmPlaybackAudio(hash, undefined, { sequential: performanceMode })
           .then(() => {
             prewarmingHashesRef.current.delete(hash);
             prewarmedHashesRef.current.add(hash);
@@ -181,7 +189,7 @@ export function useKaraokeHostAutoplay() {
       prewarmedHashesRef.current.delete(hash);
       reportDecodeStatus(hash, "failed", "stems-prep-failed");
     }
-  }, [isHostRuntime, reportDecodeStatus, snapshot]);
+  }, [isHostRuntime, performanceMode, reportDecodeStatus, snapshot]);
 
   useEffect(() => {
     if (!snapshot || !isHostRuntime) return;

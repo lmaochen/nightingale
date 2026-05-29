@@ -56,12 +56,14 @@ const TransportActionsContext = createContext<PlaybackTransportActions | null>(n
 interface PlaybackTransportProviderProps {
   fileHash: string;
   initialGuideVolume: number;
+  performanceMode: boolean;
   children: ReactNode;
 }
 
 export function PlaybackTransportProvider({
   fileHash,
   initialGuideVolume,
+  performanceMode,
   children,
 }: PlaybackTransportProviderProps) {
   const navigate = useNavigate();
@@ -109,7 +111,7 @@ export function PlaybackTransportProvider({
     };
   }, [fileHash, navigate]);
 
-  const audio = useAudioPlayer(fileHash, initialGuideVolumeRef.current, stemsReady);
+  const audio = useAudioPlayer(fileHash, initialGuideVolumeRef.current, stemsReady, undefined, performanceMode);
 
   useEffect(() => {
     if (!stemsReady) {

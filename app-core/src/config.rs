@@ -140,6 +140,9 @@ pub struct AppConfig {
     pub playback_performance_mode: Option<bool>,
     /// Show the pitch graph overlay during playback.
     pub playback_show_pitch_graph: Option<bool>,
+    /// Audio decode strategy for playback: `client_mp3` (default) or
+    /// `server_pcm` (serve WAV stems when available).
+    pub playback_audio_decode_mode: Option<String>,
 }
 
 fn default_data_path_option() -> Option<PathBuf> {
@@ -178,6 +181,7 @@ impl Default for AppConfig {
             lyrics_font_scale: None,
             playback_performance_mode: None,
             playback_show_pitch_graph: None,
+            playback_audio_decode_mode: None,
         }
     }
 }
@@ -383,6 +387,18 @@ impl AppConfig {
 
     pub fn playback_show_pitch_graph(&self) -> bool {
         self.playback_show_pitch_graph.unwrap_or(true)
+    }
+
+    pub fn playback_audio_decode_mode(&self) -> &str {
+        match self
+            .playback_audio_decode_mode
+            .as_deref()
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+        {
+            Some("server_pcm") => "server_pcm",
+            _ => "client_mp3",
+        }
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {

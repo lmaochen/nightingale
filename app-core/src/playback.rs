@@ -108,10 +108,10 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
         if let Some(bundle) = song.usdx.as_ref() {
             let voc = bundle.vocals.as_ref().unwrap_or(&bundle.audio);
             let inst = bundle.instrumental.as_ref().unwrap_or(&bundle.audio);
-            return AudioPaths {
+            return apply_decode_mode(AudioPaths {
                 instrumental: inst.to_string_lossy().into_owned(),
                 vocals: voc.to_string_lossy().into_owned(),
-            };
+            });
         }
 
         let effective_key = song.override_key.as_ref().or(song.key.as_ref());
@@ -122,25 +122,25 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
             let variant_vocals = cache.variant_vocals_path(file_hash, key, tempo);
             if is_base_original_selection(&song, key, tempo) {
                 if variant_instrumental.is_file() && variant_vocals.is_file() {
-                    return AudioPaths {
+                    return apply_decode_mode(AudioPaths {
                         instrumental: variant_instrumental.to_string_lossy().into_owned(),
                         vocals: variant_vocals.to_string_lossy().into_owned(),
-                    };
+                    });
                 }
                 let legacy_inst = cache.instrumental_path(file_hash);
                 let legacy_voc = cache.vocals_path(file_hash);
                 if legacy_inst.is_file() && legacy_voc.is_file() {
-                    return AudioPaths {
+                    return apply_decode_mode(AudioPaths {
                         instrumental: legacy_inst.to_string_lossy().into_owned(),
                         vocals: legacy_voc.to_string_lossy().into_owned(),
-                    };
+                    });
                 }
             }
             if variant_instrumental.is_file() && variant_vocals.is_file() {
-                return AudioPaths {
+                return apply_decode_mode(AudioPaths {
                     instrumental: variant_instrumental.to_string_lossy().into_owned(),
                     vocals: variant_vocals.to_string_lossy().into_owned(),
-                };
+                });
             }
         }
     }
@@ -148,15 +148,95 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
     let legacy_inst = cache.instrumental_path(file_hash);
     let legacy_voc = cache.vocals_path(file_hash);
     if legacy_inst.is_file() && legacy_voc.is_file() {
-        return AudioPaths {
+        return apply_decode_mode(AudioPaths {
             instrumental: legacy_inst.to_string_lossy().into_owned(),
             vocals: legacy_voc.to_string_lossy().into_owned(),
-        };
+        });
     }
 
-    AudioPaths {
+    apply_decode_mode(AudioPaths {
         instrumental: legacy_inst.to_string_lossy().into_owned(),
         vocals: legacy_voc.to_string_lossy().into_owned(),
+    })
+}
+
+fn convert_audio_to_wav(source: &Path, target: &Path) -> Result<(), NightingaleError> {
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let tmp = target.with_extension(format!("{}.tmp.wav", std::process::id()));
+    let status = silent_command(ffmpeg_path())
+        .args(["-y", "-i"])
+        .arg(source)
+        .args([
+            "-c:a",
+            "pcm_s16le",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            "-v",
+            "error",
+        ])
+        .arg(&tmp)
+        .status()?;
+
+    if !status.success() {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(NightingaleError::Other(format!(
+            "ffmpeg server-pcm conversion failed with status {status}"
+        )));
+    }
+
+    if target.exists() {
+        let _ = std::fs::remove_file(target);
+    }
+    std::fs::rename(tmp, target)?;
+    Ok(())
+}
+
+fn maybe_server_pcm_path(path: &str, cache_root: &Path) -> Option<String> {
+    let source = PathBuf::from(path);
+    if !source.is_file() || !source.starts_with(cache_root) {
+        return None;
+    }
+    if source
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
+    {
+        return Some(source.to_string_lossy().into_owned());
+    }
+
+    let target = source.with_extension("wav");
+    if !target.is_file() {
+        if let Err(err) = convert_audio_to_wav(&source, &target) {
+            warn!(
+                "server_pcm conversion failed for {}: {}",
+                source.to_string_lossy(),
+                err
+            );
+            return None;
+        }
+    }
+    Some(target.to_string_lossy().into_owned())
+}
+
+fn apply_decode_mode(paths: AudioPaths) -> AudioPaths {
+    let config = crate::config::AppConfig::load();
+    if config.playback_audio_decode_mode() != "server_pcm" {
+        return paths;
+    }
+
+    let cache = CacheDir::new();
+    let AudioPaths {
+        instrumental,
+        vocals,
+    } = paths;
+    AudioPaths {
+        instrumental: maybe_server_pcm_path(&instrumental, &cache.path).unwrap_or(instrumental),
+        vocals: maybe_server_pcm_path(&vocals, &cache.path).unwrap_or(vocals),
     }
 }
 

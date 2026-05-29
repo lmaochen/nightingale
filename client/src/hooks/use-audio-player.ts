@@ -24,6 +24,23 @@ const decodedAudioCache = new Map<string, DecodedAudioPair>();
 const decodeInFlight = new Map<string, Promise<DecodedAudioPair>>();
 const decodeErrorByHash = new Map<string, string>();
 const DECODE_CACHE_LIMIT = 3;
+let decodeSequentialChain: Promise<void> = Promise.resolve();
+
+function runDecodeTask(
+  decodeTask: () => Promise<DecodedAudioPair>,
+  sequential: boolean,
+): Promise<DecodedAudioPair> {
+  if (!sequential) {
+    return decodeTask();
+  }
+
+  const queued = decodeSequentialChain.catch(() => undefined).then(decodeTask);
+  decodeSequentialChain = queued.then(
+    () => undefined,
+    () => undefined,
+  );
+  return queued;
+}
 
 function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
   if (decodedAudioCache.has(fileHash)) {
@@ -80,6 +97,7 @@ function ensureDecodedAudio(
   fileHash: string,
   adapter: PlaybackAdapter,
   ctx: AudioContext,
+  sequential = false,
 ): Promise<DecodedAudioPair> {
   const cached = decodedAudioCache.get(fileHash);
   if (cached) return Promise.resolve(cached);
@@ -87,7 +105,7 @@ function ensureDecodedAudio(
   const inflight = decodeInFlight.get(fileHash);
   if (inflight) return inflight;
 
-  const task = decodeAudioForFileHash(fileHash, adapter, ctx)
+  const task = runDecodeTask(() => decodeAudioForFileHash(fileHash, adapter, ctx), sequential)
     .then((decoded) => {
       cacheDecodedAudio(fileHash, decoded);
       return decoded;
@@ -107,12 +125,13 @@ function ensureDecodedAudio(
 export function prewarmPlaybackAudio(
   fileHash: string,
   adapter: PlaybackAdapter = playbackAdapter,
+  options?: { sequential?: boolean },
 ): Promise<void> {
   if (!fileHash || decodedAudioCache.has(fileHash)) return Promise.resolve();
   const inflight = decodeInFlight.get(fileHash);
   if (inflight) return inflight.then(() => undefined);
 
-  const task = (async () => {
+  const task = runDecodeTask(async () => {
     const warmCtx = new AudioContext();
     try {
       const decoded = await decodeAudioForFileHash(fileHash, adapter, warmCtx);
@@ -121,7 +140,7 @@ export function prewarmPlaybackAudio(
     } finally {
       void warmCtx.close().catch(() => {});
     }
-  })()
+  }, options?.sequential === true)
     .catch((error) => {
       const message = error instanceof Error ? error.message : String(error);
       decodeErrorByHash.set(fileHash, message);
@@ -173,6 +192,7 @@ export function useAudioPlayer(
   initialGuideVolume: number,
   enabled: boolean,
   adapter: PlaybackAdapter = playbackAdapter,
+  sequentialDecode = false,
 ): AudioPlayer {
   const ctxRef = useRef<AudioContext | null>(null);
   const instrumentalBufRef = useRef<AudioBuffer | null>(null);
@@ -312,7 +332,7 @@ export function useAudioPlayer(
 
     const isCancelled = () => cancelled || cancelledRef.current;
 
-    ensureDecodedAudio(fileHash, adapter, ctx)
+    ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode)
       .then(async ({ instrumental, vocals, duration }) => {
         if (isCancelled()) {
           return;
@@ -370,7 +390,7 @@ export function useAudioPlayer(
       ctx.close();
       ctxRef.current = null;
     };
-  }, [adapter, enabled, fileHash, initialGuideVolume, startSources, stopSources]);
+  }, [adapter, enabled, fileHash, initialGuideVolume, sequentialDecode, startSources, stopSources]);
 
   const play = useCallback(() => {
     startSources(startOffsetRef.current);

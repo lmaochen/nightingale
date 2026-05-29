@@ -74,4 +74,8 @@ export type AppConfig = {
    * Show the pitch graph overlay during playback.
    */
   playback_show_pitch_graph: boolean | null;
+  /**
+   * Audio decode strategy for playback: `client_mp3` (default) or `server_pcm`.
+   */
+  playback_audio_decode_mode: string | null;
 };
