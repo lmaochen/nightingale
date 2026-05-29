@@ -259,6 +259,7 @@ export function useAudioPlayer(
   adapter: PlaybackAdapter = playbackAdapter,
   sequentialDecode = false,
   stickyPredecode = false,
+  fastStartInstrumentalFirst = false,
 ): AudioPlayer {
   const ctxRef = useRef<AudioContext | null>(null);
   const instrumentalBufRef = useRef<AudioBuffer | null>(null);
@@ -336,6 +337,26 @@ export function useAudioPlayer(
     vocalsSrcRef.current = null;
   }, []);
 
+  const startVocalsSourceAt = useCallback((offset: number) => {
+    const ctx = ctxRef.current;
+    const vocBuf = vocalsBufRef.current;
+    const gainNode = vocalsGainRef.current;
+    if (!ctx || !vocBuf || !gainNode) return;
+
+    try {
+      vocalsSrcRef.current?.stop();
+    } catch {
+      /* BufferSourceNode throws if stopped twice */
+    }
+
+    const clamped = Math.max(0, Math.min(offset, vocBuf.duration));
+    const vocSrc = ctx.createBufferSource();
+    vocSrc.buffer = vocBuf;
+    vocSrc.connect(gainNode);
+    vocSrc.start(0, clamped);
+    vocalsSrcRef.current = vocSrc;
+  }, []);
+
   const startSources = useCallback(
     (offset: number) => {
       const ctx = ctxRef.current;
@@ -343,7 +364,7 @@ export function useAudioPlayer(
       const vocBuf = vocalsBufRef.current;
       const gainNode = vocalsGainRef.current;
 
-      if (!ctx || !instBuf || !vocBuf || !gainNode) {
+      if (!ctx || !instBuf || !gainNode) {
         return;
       }
 
@@ -355,9 +376,12 @@ export function useAudioPlayer(
       instSrc.buffer = instBuf;
       instSrc.connect(ctx.destination);
 
-      const vocSrc = ctx.createBufferSource();
-      vocSrc.buffer = vocBuf;
-      vocSrc.connect(gainNode);
+      let vocSrc: AudioBufferSourceNode | null = null;
+      if (vocBuf) {
+        vocSrc = ctx.createBufferSource();
+        vocSrc.buffer = vocBuf;
+        vocSrc.connect(gainNode);
+      }
 
       instSrc.onended = () => {
         if (!cancelledRef.current && playingRef.current && instrumentalSrcRef.current === instSrc) {
@@ -372,7 +396,7 @@ export function useAudioPlayer(
       startContextTimeRef.current = ctx.currentTime;
 
       instSrc.start(0, clamped);
-      vocSrc.start(0, clamped);
+      vocSrc?.start(0, clamped);
 
       instrumentalSrcRef.current = instSrc;
       vocalsSrcRef.current = vocSrc;
@@ -406,32 +430,88 @@ export function useAudioPlayer(
 
     const isCancelled = () => cancelled || cancelledRef.current;
 
-    ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode, {
-      decodeTimeoutMs: sequentialDecode ? 5000 : undefined,
-      allowMp3Fallback: sequentialDecode,
-    })
-      .then(async ({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
-        if (isCancelled()) {
-          return;
-        }
+    if (fastStartInstrumentalFirst && sequentialDecode) {
+      adapter
+        .getAudioPaths(fileHash)
+        .then(async (paths) => {
+          const loadedDecodeFormat =
+            paths.instrumental.toLowerCase().includes(".wav") &&
+            paths.vocals.toLowerCase().includes(".wav")
+              ? "wav"
+              : "mp3";
 
-        if (isCancelled()) {
-          return;
-        }
+          const instData = await fetch(paths.instrumental).then((r) => {
+            if (!r.ok) {
+              throw new Error(`Failed to fetch instrumental: ${r.status}`);
+            }
+            return r.arrayBuffer();
+          });
+          const instrumental = await ctx.decodeAudioData(instData);
+          if (isCancelled()) {
+            return;
+          }
 
-        instrumentalBufRef.current = instrumental;
-        vocalsBufRef.current = vocals;
+          instrumentalBufRef.current = instrumental;
+          setDuration(instrumental.duration);
+          setDecodeFormat(loadedDecodeFormat);
+          setIsReady(true);
 
-        setDuration(duration);
-        setDecodeFormat(loadedDecodeFormat);
-
-        setIsReady(true);
+          void fetch(paths.vocals)
+            .then((r) => {
+              if (!r.ok) {
+                throw new Error(`Failed to fetch vocals: ${r.status}`);
+              }
+              return r.arrayBuffer();
+            })
+            .then((vocData) => ctx.decodeAudioData(vocData))
+            .then((vocals) => {
+              if (isCancelled()) {
+                return;
+              }
+              vocalsBufRef.current = vocals;
+              if (playingRef.current) {
+                const currentOffset =
+                  startOffsetRef.current + (ctx.currentTime - startContextTimeRef.current);
+                startVocalsSourceAt(currentOffset);
+              }
+            })
+            .catch(() => {
+              // Non-fatal in fast-start mode: keep instrumental playback alive.
+            });
+        })
+        .catch((e) => {
+          if (!isCancelled()) {
+            setError(`Failed to load audio: ${e}`);
+          }
+        });
+    } else {
+      ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode, {
+        decodeTimeoutMs: sequentialDecode ? 5000 : undefined,
+        allowMp3Fallback: sequentialDecode,
       })
-      .catch((e) => {
-        if (!isCancelled()) {
-          setError(`Failed to load audio: ${e}`);
-        }
-      });
+        .then(async ({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
+          if (isCancelled()) {
+            return;
+          }
+
+          if (isCancelled()) {
+            return;
+          }
+
+          instrumentalBufRef.current = instrumental;
+          vocalsBufRef.current = vocals;
+
+          setDuration(duration);
+          setDecodeFormat(loadedDecodeFormat);
+
+          setIsReady(true);
+        })
+        .catch((e) => {
+          if (!isCancelled()) {
+            setError(`Failed to load audio: ${e}`);
+          }
+        });
+    }
 
     let lastNotify = 0;
     const NOTIFY_INTERVAL = 33;
@@ -468,7 +548,17 @@ export function useAudioPlayer(
       ctx.close();
       ctxRef.current = null;
     };
-  }, [adapter, enabled, fileHash, initialGuideVolume, sequentialDecode, startSources, stopSources]);
+  }, [
+    adapter,
+    enabled,
+    fileHash,
+    fastStartInstrumentalFirst,
+    initialGuideVolume,
+    sequentialDecode,
+    startSources,
+    startVocalsSourceAt,
+    stopSources,
+  ]);
 
   const play = useCallback(() => {
     startSources(startOffsetRef.current);

@@ -86,4 +86,8 @@ export type AppConfig = {
    * Keep a small sticky in-memory predecode buffer for smoother transitions.
    */
   playback_sticky_predecode: boolean | null;
+  /**
+   * Start playback after instrumental decode and attach vocals when ready.
+   */
+  playback_fast_start_instrumental_first: boolean | null;
 };

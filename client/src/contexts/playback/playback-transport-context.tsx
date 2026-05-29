@@ -59,6 +59,7 @@ interface PlaybackTransportProviderProps {
   initialGuideVolume: number;
   performanceMode: boolean;
   stickyPredecode: boolean;
+  fastStartInstrumentalFirst: boolean;
   children: ReactNode;
 }
 
@@ -67,6 +68,7 @@ export function PlaybackTransportProvider({
   initialGuideVolume,
   performanceMode,
   stickyPredecode,
+  fastStartInstrumentalFirst,
   children,
 }: PlaybackTransportProviderProps) {
   const navigate = useNavigate();
@@ -121,6 +123,7 @@ export function PlaybackTransportProvider({
     undefined,
     performanceMode,
     stickyPredecode,
+    fastStartInstrumentalFirst,
   );
 
   useEffect(() => {

@@ -72,6 +72,7 @@ const DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH = true;
 const DEFAULT_PLAYBACK_AUDIO_DECODE_MODE = "client_mp3";
 const DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED = true;
 const DEFAULT_PLAYBACK_STICKY_PREDECODE = false;
+const DEFAULT_PLAYBACK_FAST_START_INSTRUMENTAL_FIRST = false;
 const DEFAULT_AUTO_RESCAN_SECONDS = 0;
 const AUTO_RESCAN_SECONDS_MIN = 0;
 const AUTO_RESCAN_SECONDS_MAX = 3600;
@@ -307,6 +308,9 @@ export const SettingsDialog = () => {
     config?.playback_warmup_cache_enabled ?? DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED;
   const playbackStickyPredecode =
     config?.playback_sticky_predecode ?? DEFAULT_PLAYBACK_STICKY_PREDECODE;
+  const playbackFastStartInstrumentalFirst =
+    config?.playback_fast_start_instrumental_first ??
+    DEFAULT_PLAYBACK_FAST_START_INSTRUMENTAL_FIRST;
   const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
@@ -629,6 +633,26 @@ export const SettingsDialog = () => {
               </ButtonGroup>
             </Field>
             <Field>
+              <Label>Fast Start (Instrumental First)</Label>
+              <FieldDescription>
+                Start playback as soon as instrumental is ready, then fade in guide vocals once decoded
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackFastStartInstrumentalFirst ? "default" : "outline"}
+                  onClick={() => mutate({ playback_fast_start_instrumental_first: true })}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!playbackFastStartInstrumentalFirst ? "default" : "outline"}
+                  onClick={() => mutate({ playback_fast_start_instrumental_first: false })}
+                >
+                  Off
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
               <Label>Auto Rescan Library</Label>
               <FieldDescription>
                 Automatically rescan your library every{" "}
@@ -837,6 +861,8 @@ export const SettingsDialog = () => {
                   playback_audio_decode_mode: DEFAULT_PLAYBACK_AUDIO_DECODE_MODE,
                   playback_warmup_cache_enabled: DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED,
                   playback_sticky_predecode: DEFAULT_PLAYBACK_STICKY_PREDECODE,
+                  playback_fast_start_instrumental_first:
+                    DEFAULT_PLAYBACK_FAST_START_INSTRUMENTAL_FIRST,
                 })
               }
               className={generateRingClassName(footerSegment, 0)}

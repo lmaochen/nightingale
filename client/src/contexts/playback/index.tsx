@@ -24,6 +24,7 @@ export function PlaybackProviders({ song, config, children }: PlaybackProvidersP
       initialGuideVolume={config?.guide_volume ?? 0.3}
       performanceMode={config?.playback_performance_mode ?? false}
       stickyPredecode={config?.playback_sticky_predecode ?? false}
+      fastStartInstrumentalFirst={config?.playback_fast_start_instrumental_first ?? false}
     >
       <PlaybackThemeProvider song={song} config={config}>
         <PlaybackMicProvider config={config}>

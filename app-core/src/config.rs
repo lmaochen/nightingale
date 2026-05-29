@@ -147,6 +147,8 @@ pub struct AppConfig {
     pub playback_warmup_cache_enabled: Option<bool>,
     /// Keep a small sticky in-memory predecode buffer for smoother transitions.
     pub playback_sticky_predecode: Option<bool>,
+    /// Start playback after instrumental decode and attach vocals when ready.
+    pub playback_fast_start_instrumental_first: Option<bool>,
 }
 
 fn default_data_path_option() -> Option<PathBuf> {
@@ -188,6 +190,7 @@ impl Default for AppConfig {
             playback_audio_decode_mode: None,
             playback_warmup_cache_enabled: None,
             playback_sticky_predecode: None,
+            playback_fast_start_instrumental_first: None,
         }
     }
 }
@@ -413,6 +416,10 @@ impl AppConfig {
 
     pub fn playback_sticky_predecode(&self) -> bool {
         self.playback_sticky_predecode.unwrap_or(false)
+    }
+
+    pub fn playback_fast_start_instrumental_first(&self) -> bool {
+        self.playback_fast_start_instrumental_first.unwrap_or(false)
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {
