@@ -34,9 +34,13 @@ export function KaraokeHostPage() {
     }
   };
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className="mx-auto max-w-6xl space-y-4 pb-24 md:pb-0">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <ArrowLeftIcon className="size-4" /> Back to menu
@@ -46,7 +50,7 @@ export function KaraokeHostPage() {
           </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div id="host-overview" className="grid gap-4 md:grid-cols-3 scroll-mt-20">
           <div className="rounded-lg border border-border/60 p-4 md:col-span-2">
             <h1 className="text-2xl font-semibold">Karaoke Host</h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -56,7 +60,7 @@ export function KaraokeHostPage() {
             <p className="text-sm text-muted-foreground">Host role: {me?.role ?? "not joined"}</p>
           </div>
 
-          <div className="rounded-lg border border-border/60 p-4">
+          <div id="host-queue" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
             <p className="text-sm font-medium">Host session</p>
             <div className="mt-2 space-y-2">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Host name" />
@@ -69,7 +73,7 @@ export function KaraokeHostPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-lg border border-border/60 p-4">
+          <div id="host-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
             <h2 className="text-lg font-semibold">Queue</h2>
             <div className="mt-3 space-y-2">
               {(snapshot?.queue ?? []).map((item, idx) => (
@@ -157,7 +161,7 @@ export function KaraokeHostPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 p-4">
+        <div id="host-search" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h2 className="text-lg font-semibold">Add Song (Downtify Search)</h2>
           <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search songs..." />
@@ -187,6 +191,22 @@ export function KaraokeHostPage() {
               );
             })}
           </div>
+        </div>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-2">
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("host-overview")}>
+            Home
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("host-queue")}>
+            Queue
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("host-controls")}>
+            Controls
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("host-search")}>
+            Search
+          </Button>
         </div>
       </div>
     </div>

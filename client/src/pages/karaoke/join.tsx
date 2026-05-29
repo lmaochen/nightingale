@@ -36,10 +36,14 @@ export function KaraokeJoinPage() {
     }
   };
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
-      <div className="mx-auto max-w-3xl space-y-4">
-        <div className="rounded-lg border border-border/60 p-4">
+      <div className="mx-auto max-w-3xl space-y-4 pb-24 md:pb-0">
+        <div id="join-overview" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h1 className="text-2xl font-semibold">Join Karaoke</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Status: {connected ? "Connected" : "Disconnected"} -{" "}
@@ -57,7 +61,7 @@ export function KaraokeJoinPage() {
           )}
         </div>
 
-        <div className="rounded-lg border border-border/60 p-4">
+        <div id="join-search" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h2 className="text-lg font-semibold">Search and Add Songs</h2>
           <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
@@ -95,7 +99,7 @@ export function KaraokeJoinPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 p-4">
+        <div id="join-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h2 className="text-lg font-semibold">Shared Controls</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Controls are currently {canControl ? "enabled" : "disabled"} for your role.
@@ -148,7 +152,7 @@ export function KaraokeJoinPage() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border/60 p-4">
+        <div id="join-queue" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h2 className="text-lg font-semibold">Queue</h2>
           <div className="mt-3 space-y-2">
             {(snapshot?.queue ?? []).map((item) => (
@@ -167,6 +171,22 @@ export function KaraokeJoinPage() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-overview")}>
+            Join
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-search")}>
+            Search
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-controls")}>
+            Controls
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-queue")}>
+            Queue
+          </Button>
         </div>
       </div>
     </div>
