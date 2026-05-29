@@ -1,4 +1,5 @@
 import { loadSongs } from "@/bridge/songs";
+import { ensureMp3Stems } from "@/bridge/playback";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { useQuery } from "@tanstack/react-query";
@@ -67,6 +68,7 @@ export function useKaraokeHostAutoplay() {
     location.pathname === "/host" &&
     new URLSearchParams(location.search).get("autoNext") === "1";
   const launchingRef = useRef(false);
+  const prewarmedHashesRef = useRef(new Set<string>());
   const isHostDevice =
     typeof window !== "undefined" &&
     (() => {
@@ -99,6 +101,28 @@ export function useKaraokeHostAutoplay() {
   });
 
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
+
+  useEffect(() => {
+    if (!snapshot || !isHostDevice || snapshot.queue.length === 0) return;
+    const nextQueued = snapshot.queue[0];
+    const nextSong = resolveQueuedSong(nextQueued, songs);
+    if (!nextSong) return;
+
+    const hash = nextSong.file_hash;
+    if (!hash || prewarmedHashesRef.current.has(hash)) return;
+
+    prewarmedHashesRef.current.add(hash);
+    if (prewarmedHashesRef.current.size > 64) {
+      // Keep memory bounded for long-running host sessions.
+      prewarmedHashesRef.current.clear();
+      prewarmedHashesRef.current.add(hash);
+    }
+
+    void ensureMp3Stems(hash).catch(() => {
+      // Allow retry on transient failures.
+      prewarmedHashesRef.current.delete(hash);
+    });
+  }, [isHostDevice, snapshot, songs]);
 
   useEffect(() => {
     if (!snapshot || !isHostDevice) return;
