@@ -83,11 +83,10 @@ async function decodeAudioForFileHash(
   ]);
 
   if (ctx.state === "suspended") {
-    try {
-      await ctx.resume();
-    } catch {
-      // Some browsers block resume without a user gesture; decode can still proceed.
-    }
+    // Don't block decode on resume; some browsers may delay until user gesture.
+    void ctx.resume().catch(() => {
+      // decodeAudioData can still run while suspended in modern browsers.
+    });
   }
 
   const [instrumental, vocals] = await Promise.all([

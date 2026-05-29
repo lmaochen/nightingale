@@ -70,12 +70,14 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   }, [snapshot, me]);
   const performanceMode = config?.playback_performance_mode ?? false;
   const showPitchGraph = config?.playback_show_pitch_graph ?? true;
+  const configuredDecodeLabel =
+    config?.playback_audio_decode_mode === "server_pcm" ? "WAV (server_pcm)" : "MP3 (client_mp3)";
   const decodeLabel =
     decodeFormat === "wav"
       ? "WAV (server_pcm)"
       : decodeFormat === "mp3"
         ? "MP3 (client_mp3)"
-        : "detecting...";
+        : configuredDecodeLabel;
   const clearedFinishedSongRef = useRef(false);
 
   usePlaybackInput(config);
