@@ -101,6 +101,7 @@ export function useJukeboxSession(options?: UseJukeboxSessionOptions) {
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const joinIntentRef = useRef<JoinIntent | null>(loadJoinIntent());
+  const joinedToastClientRef = useRef<number | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -222,6 +223,13 @@ export function useJukeboxSession(options?: UseJukeboxSessionOptions) {
     if (clientId == null || !snapshot) return null;
     return snapshot.participants.find((p) => p.client_id === clientId) ?? null;
   }, [clientId, snapshot]);
+
+  useEffect(() => {
+    if (!me) return;
+    if (joinedToastClientRef.current === me.client_id) return;
+    joinedToastClientRef.current = me.client_id;
+    toast.success(`Joined karaoke session as ${me.display_name}`);
+  }, [me]);
 
   return {
     connected,

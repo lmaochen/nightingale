@@ -75,13 +75,16 @@ export const Menu = () => {
       <ClearCacheDialog />
       <JellyfinConnectDialog />
       <NavidromeConnectDialog />
-      <SidebarInset>
-        <div className="pb-20 md:pb-0">{content}</div>
+      <SidebarInset className="overflow-y-auto overscroll-y-contain touch-pan-y">
+        <div className="min-h-full pb-24 md:pb-0">{content}</div>
       </SidebarInset>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-3xl grid-cols-3 gap-2">
+        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
           <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/")}>
             Library
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => setMode("request-song")}>
+            Add Songs
           </Button>
           <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/join")}>
             Join

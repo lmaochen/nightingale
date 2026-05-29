@@ -1,10 +1,16 @@
 import { loadSongs } from "@/bridge/songs";
+import {
+  downtifyQueueDownload,
+  downtifySearchSongs,
+  type DowntifySong,
+} from "@/bridge/downtify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { Loader2Icon } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const DEFAULT_JOIN_NAME = "Guest";
 
@@ -15,6 +21,10 @@ export function KaraokeJoinPage() {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<Song[]>([]);
+  const [importQuery, setImportQuery] = useState("");
+  const [importSearching, setImportSearching] = useState(false);
+  const [importResults, setImportResults] = useState<DowntifySong[]>([]);
+  const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
@@ -55,6 +65,40 @@ export function KaraokeJoinPage() {
       setResults(result.processed);
     } finally {
       setSearching(false);
+    }
+  };
+
+  const handleImportSearch = async (e: FormEvent) => {
+    e.preventDefault();
+    const q = importQuery.trim();
+    if (!q) return;
+    setImportSearching(true);
+    try {
+      setImportResults(await downtifySearchSongs(q));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Downtify search failed: ${message}`);
+    } finally {
+      setImportSearching(false);
+    }
+  };
+
+  const queueDowntifyDownload = async (song: DowntifySong) => {
+    const songId =
+      typeof song.song_id === "string" && song.song_id.length > 0
+        ? song.song_id
+        : typeof song.url === "string" && song.url.length > 0
+          ? song.url
+          : JSON.stringify(song);
+    setDownloadingSongId(songId);
+    try {
+      await downtifyQueueDownload(song);
+      toast.success("Queued in Downtify. It will appear after download + scan.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Queue failed: ${message}`);
+    } finally {
+      setDownloadingSongId(null);
     }
   };
 
@@ -131,6 +175,60 @@ export function KaraokeJoinPage() {
                     onClick={() => actions.addToQueue(song as unknown as Record<string, unknown>)}
                   >
                     Add
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div id="join-import" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
+          <h2 className="text-lg font-semibold">Add to Library (Downtify)</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Search or paste a track/URL and queue a download into your Nightingale library.
+          </p>
+          <form onSubmit={handleImportSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Input
+              value={importQuery}
+              onChange={(e) => setImportQuery(e.target.value)}
+              placeholder="Song name or URL"
+              disabled={!me}
+            />
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={!me || importSearching || !importQuery.trim()}
+            >
+              {importSearching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
+            </Button>
+          </form>
+          <div className="mt-3 grid gap-2 max-h-48 overflow-y-auto pr-1">
+            {importResults.map((song) => {
+              const songId =
+                typeof song.song_id === "string" && song.song_id.length > 0
+                  ? song.song_id
+                  : typeof song.url === "string" && song.url.length > 0
+                    ? song.url
+                    : JSON.stringify(song);
+              const title = typeof song.name === "string" && song.name ? song.name : "Unknown title";
+              const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
+              return (
+                <div
+                  key={songId}
+                  className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{title}</p>
+                    <p className="truncate text-xs text-muted-foreground">{artists}</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    disabled={!me || downloadingSongId === songId}
+                    onClick={() => void queueDowntifyDownload(song)}
+                  >
+                    {downloadingSongId === songId ? "Queueing..." : "Download"}
                   </Button>
                 </div>
               );
@@ -223,9 +321,24 @@ export function KaraokeJoinPage() {
                   </p>
                 </div>
                 {canControl && (
-                  <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => actions.removeFromQueue(item.id)}>
-                    Remove
-                  </Button>
+                  <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => actions.reorderQueue(item.id, 0)}
+                    >
+                      Top
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => actions.removeFromQueue(item.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
                 )}
               </div>
             ))}
@@ -233,12 +346,15 @@ export function KaraokeJoinPage() {
         </div>
       </div>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
+        <div className="mx-auto grid max-w-3xl grid-cols-5 gap-2">
           <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-overview")}>
             Join
           </Button>
           <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-search")}>
             Search
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-import")}>
+            Import
           </Button>
           <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-controls")}>
             Controls
