@@ -73,7 +73,6 @@ export function PlaybackTransportProvider({
   const [paused, setPaused] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
   const [bootStage, setBootStage] = useState("Waiting for stems");
-  const startupHandledRef = useRef(false);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -123,10 +122,7 @@ export function PlaybackTransportProvider({
   }, [audio.isReady, stemsReady]);
 
   useEffect(() => {
-    if (!stemsReady || !audio.isReady) return;
-    if (startupHandledRef.current) return;
-    startupHandledRef.current = true;
-    setIsBooting(true);
+    if (!stemsReady || !audio.isReady || !isBooting) return;
     setBootStage("Finalizing playback");
 
     const timer = window.setTimeout(() => {
@@ -139,7 +135,7 @@ export function PlaybackTransportProvider({
     return () => {
       window.clearTimeout(timer);
     };
-  }, [audio, stemsReady]);
+  }, [audio.isReady, audio.play, isBooting, stemsReady]);
 
   useEffect(() => {
     if (audio.error) {
