@@ -398,7 +398,7 @@ export function KaraokeJoinPage() {
                 type="button"
                 variant="outline"
                 className="w-full sm:w-auto"
-                disabled={!me || searching || (!query.trim() && !artistQuery.trim() && !selectedArtist)}
+                disabled={searching || (!query.trim() && !artistQuery.trim() && !selectedArtist)}
                 onClick={() => {
                   setQuery("");
                   setArtistQuery("");
@@ -407,7 +407,7 @@ export function KaraokeJoinPage() {
                   void loadLatestSongs();
                 }}
               >
-                Clear Search
+                Clear All Filters
               </Button>
             </div>
             <Button
