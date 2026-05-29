@@ -587,6 +587,16 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                                 s.current_song = None;
                             }
                         }
+                        "skip-intro" => {
+                            if can_control(s, client_id) {
+                                s.skip_intro_signal = s.skip_intro_signal.saturating_add(1);
+                            }
+                        }
+                        "skip-outro" => {
+                            if can_control(s, client_id) {
+                                s.skip_outro_signal = s.skip_outro_signal.saturating_add(1);
+                            }
+                        }
                         "rescan-library" => {
                             if can_admin(s, client_id) {
                                 should_trigger_scan = true;

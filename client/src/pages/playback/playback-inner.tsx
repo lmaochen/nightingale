@@ -17,6 +17,7 @@ import {
   usePlaybackThemeActions,
   usePlaybackThemeState,
   usePlaybackMicState,
+  usePlaybackTranscriptActions,
   usePlaybackTranscriptState,
   usePlaybackTransportActions,
   usePlaybackTransportState,
@@ -25,7 +26,7 @@ import { usePlaybackInput, usePlaybackResult } from "@/hooks/playback";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import type { Song } from "@/types/Song";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export interface PlaybackInnerProps {
   song: Song;
@@ -43,8 +44,11 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   const { themeIndex } = usePlaybackThemeState();
   const { setThemeIndex } = usePlaybackThemeActions();
   const { segments } = usePlaybackTranscriptState();
+  const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
   const { series } = usePlaybackMicState();
   const { snapshot } = useJukeboxSession({ autoJoinPersistedIntent: false });
+  const skipIntroSignalRef = useRef(0);
+  const skipOutroSignalRef = useRef(0);
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
@@ -74,6 +78,22 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     if (snapshot.theme === themeIndex) return;
     setThemeIndex(snapshot.theme);
   }, [isReady, setThemeIndex, snapshot, themeIndex]);
+
+  useEffect(() => {
+    if (!isReady || !snapshot) return;
+    if (snapshot.skip_intro_signal > skipIntroSignalRef.current) {
+      skipIntroSignalRef.current = snapshot.skip_intro_signal;
+      handleSkipIntro();
+    }
+  }, [handleSkipIntro, isReady, snapshot]);
+
+  useEffect(() => {
+    if (!isReady || !snapshot) return;
+    if (snapshot.skip_outro_signal > skipOutroSignalRef.current) {
+      skipOutroSignalRef.current = snapshot.skip_outro_signal;
+      handleSkipOutro();
+    }
+  }, [handleSkipOutro, isReady, snapshot]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>

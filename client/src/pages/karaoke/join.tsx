@@ -6,6 +6,7 @@ import {
   type DowntifyQueueEntry,
   type DowntifySong,
 } from "@/bridge/downtify";
+import { convertFileSrc } from "@/bridge/media";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
@@ -18,6 +19,25 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const DEFAULT_JOIN_NAME = "Guest";
+const LIBRARY_TAKE = 120;
+const DEFAULT_LIBRARY_FILTER = "all";
+
+type LibraryFilterMode = "all" | "analysed" | "unanalysed" | "videos";
+
+type ImportStage =
+  | { kind: "downloading" }
+  | { kind: "waiting-library" }
+  | { kind: "analyzing"; pct: number }
+  | { kind: "queued" }
+  | { kind: "failed"; message: string };
+
+interface PendingImport {
+  key: string;
+  title: string;
+  artist: string;
+  song: DowntifySong;
+  stage: ImportStage;
+}
 
 function formatAnalysisStatus(status: unknown): string {
   if (status === "Queued") return "Queued";
@@ -32,6 +52,27 @@ function formatAnalysisStatus(status: unknown): string {
   return "Queued";
 }
 
+function normalize(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function pendingKey(song: DowntifySong): string {
+  if (typeof song.song_id === "string" && song.song_id.length > 0) return `song_id:${song.song_id}`;
+  if (typeof song.url === "string" && song.url.length > 0) return `url:${song.url}`;
+  return `raw:${JSON.stringify(song)}`;
+}
+
+function pendingTitle(song: DowntifySong): string {
+  return typeof song.name === "string" && song.name.trim().length > 0 ? song.name : "Unknown title";
+}
+
+function pendingArtist(song: DowntifySong): string {
+  if (Array.isArray(song.artists) && song.artists.length > 0) {
+    return song.artists.filter((v) => typeof v === "string").join(", ") || "Unknown artist";
+  }
+  return "Unknown artist";
+}
+
 export function KaraokeJoinPage() {
   const { connected, snapshot, me, actions } = useJukeboxSession();
   const [name, setName] = useState(DEFAULT_JOIN_NAME);
@@ -43,6 +84,8 @@ export function KaraokeJoinPage() {
   const [importSearching, setImportSearching] = useState(false);
   const [importResults, setImportResults] = useState<DowntifySong[]>([]);
   const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
+  const [libraryFilter, setLibraryFilter] = useState<LibraryFilterMode>(DEFAULT_LIBRARY_FILTER);
+  const [pendingImports, setPendingImports] = useState<PendingImport[]>([]);
   const downtifyQueueQuery = useQuery({
     queryKey: DOWNTIFY_QUEUE,
     queryFn: downtifyLoadQueue,
@@ -66,11 +109,38 @@ export function KaraokeJoinPage() {
     () => Object.entries(analysisQuery.data?.entries ?? {}).slice(0, 6),
     [analysisQuery.data],
   );
+  const fullAnalysisEntries = analysisQuery.data?.entries ?? {};
+  const catalogQuery = useQuery({
+    queryKey: ["join-library-catalog"],
+    queryFn: async () =>
+      loadSongs({
+        search: null,
+        filters: { artist: null, album: null, query: null },
+        skip: 0,
+        take: LIBRARY_TAKE,
+      }),
+    enabled: pendingImports.length > 0,
+    refetchInterval: pendingImports.length > 0 ? 2500 : false,
+  });
+  const catalogSongs = catalogQuery.data?.processed ?? [];
+
+  const libraryQuery = useMemo(() => {
+    const q = query.trim();
+    return q.length > 0 ? q : null;
+  }, [query]);
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
     return snapshot.host === me.client_id || snapshot.allow_guest_controls;
   }, [snapshot, me]);
+  const queuedHashes = useMemo(() => {
+    const hashes = new Set<string>();
+    for (const item of snapshot?.queue ?? []) {
+      const hash = item.song?.file_hash;
+      if (typeof hash === "string" && hash.length > 0) hashes.add(hash);
+    }
+    return hashes;
+  }, [snapshot?.queue]);
 
   const joinSession = () => {
     actions.join(pin, name.trim() || DEFAULT_JOIN_NAME, false);
@@ -80,16 +150,16 @@ export function KaraokeJoinPage() {
     setSearching(true);
     try {
       const result = await loadSongs({
-        search: null,
+        search: libraryQuery,
         filters: { artist: null, album: null, query: null },
         skip: 0,
-        take: 60,
+        take: LIBRARY_TAKE,
       });
       setResults(result.processed);
     } finally {
       setSearching(false);
     }
-  }, []);
+  }, [libraryQuery]);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -97,13 +167,7 @@ export function KaraokeJoinPage() {
     if (!q) return;
     setSearching(true);
     try {
-      const result = await loadSongs({
-        search: q,
-        filters: { artist: null, album: null, query: null },
-        skip: 0,
-        take: 60,
-      });
-      setResults(result.processed);
+      await loadLatestSongs();
     } finally {
       setSearching(false);
     }
@@ -125,28 +189,110 @@ export function KaraokeJoinPage() {
   };
 
   const queueDowntifyDownload = async (song: DowntifySong) => {
-    const songId =
-      typeof song.song_id === "string" && song.song_id.length > 0
-        ? song.song_id
-        : typeof song.url === "string" && song.url.length > 0
-          ? song.url
-          : JSON.stringify(song);
+    const songId = pendingKey(song);
     setDownloadingSongId(songId);
+    setPendingImports((prev) => {
+      if (prev.some((entry) => entry.key === songId)) return prev;
+      return [
+        ...prev,
+        {
+          key: songId,
+          title: pendingTitle(song),
+          artist: pendingArtist(song),
+          song,
+          stage: { kind: "downloading" },
+        },
+      ];
+    });
     try {
       await downtifyQueueDownload(song);
-      toast.success("Queued in Downtify. It will appear after download + scan.");
+      toast.success("Queued in Downtify. Will auto-add to karaoke queue once analyzed.");
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       toast.error(`Queue failed: ${message}`);
+      setPendingImports((prev) =>
+        prev.map((entry) =>
+          entry.key === songId ? { ...entry, stage: { kind: "failed", message } } : entry,
+        ),
+      );
     } finally {
       setDownloadingSongId(null);
     }
   };
 
   useEffect(() => {
-    if (results.length > 0) return;
+    if (results.length > 0 && query.trim().length === 0) return;
     void loadLatestSongs();
-  }, [loadLatestSongs, results.length]);
+  }, [loadLatestSongs, query, results.length]);
+
+  const filteredResults = useMemo(() => {
+    return results.filter((song) => {
+      if (libraryFilter === "analysed") return song.is_analyzed;
+      if (libraryFilter === "unanalysed") return !song.is_analyzed;
+      if (libraryFilter === "videos") return song.is_video;
+      return true;
+    });
+  }, [libraryFilter, results]);
+
+  useEffect(() => {
+    if (catalogSongs.length === 0) return;
+    setPendingImports((prev) => {
+      if (prev.length === 0) return prev;
+      let changed = false;
+      const next = prev.map((entry) => {
+        const normalizedTitle = normalize(entry.title);
+        const normalizedArtist = normalize(entry.artist);
+        const matched = catalogSongs.find((song) => {
+          const t = normalize(song.title);
+          const a = normalize(song.artist);
+          if (t !== normalizedTitle) return false;
+          if (!normalizedArtist) return true;
+          return a.includes(normalizedArtist) || normalizedArtist.includes(a);
+        });
+        if (!matched) {
+          if (entry.stage.kind === "downloading") {
+            changed = true;
+            return { ...entry, stage: { kind: "waiting-library" } };
+          }
+          return entry;
+        }
+
+        const analysisStatus = fullAnalysisEntries[matched.file_hash];
+        if (analysisStatus && typeof analysisStatus === "object" && "Analyzing" in analysisStatus) {
+          const pct = Math.round((analysisStatus as { Analyzing: number }).Analyzing);
+          if (entry.stage.kind !== "analyzing" || entry.stage.pct !== pct) {
+            changed = true;
+            return { ...entry, stage: { kind: "analyzing", pct } };
+          }
+          return entry;
+        }
+        if (analysisStatus && typeof analysisStatus === "object" && "Failed" in analysisStatus) {
+          const message = (analysisStatus as { Failed: string }).Failed;
+          if (entry.stage.kind !== "failed" || entry.stage.message !== message) {
+            changed = true;
+            return { ...entry, stage: { kind: "failed", message } };
+          }
+          return entry;
+        }
+        if (!matched.is_analyzed) {
+          if (entry.stage.kind !== "waiting-library") {
+            changed = true;
+            return { ...entry, stage: { kind: "waiting-library" } };
+          }
+          return entry;
+        }
+        if (!queuedHashes.has(matched.file_hash) && entry.stage.kind !== "queued") {
+          actions.addToQueue(matched as unknown as Record<string, unknown>);
+        }
+        if (entry.stage.kind !== "queued") {
+          changed = true;
+          return { ...entry, stage: { kind: "queued" } };
+        }
+        return entry;
+      });
+      return changed ? next : prev;
+    });
+  }, [actions, catalogSongs, fullAnalysisEntries, queuedHashes]);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -175,6 +321,9 @@ export function KaraokeJoinPage() {
 
         <div id="join-search" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h2 className="text-lg font-semibold">Search Nightingale Library</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Browse songs, see readiness at a glance, and add straight to karaoke queue.
+          </p>
           <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
               value={query}
@@ -198,24 +347,85 @@ export function KaraokeJoinPage() {
               Browse Latest
             </Button>
           </form>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <Button
+              variant={libraryFilter === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLibraryFilter("all")}
+            >
+              All
+            </Button>
+            <Button
+              variant={libraryFilter === "analysed" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLibraryFilter("analysed")}
+            >
+              Analysed
+            </Button>
+            <Button
+              variant={libraryFilter === "unanalysed" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLibraryFilter("unanalysed")}
+            >
+              Unanalysed
+            </Button>
+            <Button
+              variant={libraryFilter === "videos" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setLibraryFilter("videos")}
+            >
+              Videos
+            </Button>
+          </div>
           <div className="mt-3 grid gap-2 max-h-[46vh] overflow-y-auto pr-1">
-            {results.map((song) => {
+            {filteredResults.map((song) => {
               const title = song.title || "Unknown title";
               const artists = song.artist || "Unknown artist";
+              const inQueue = queuedHashes.has(song.file_hash);
               return (
                 <div key={song.file_hash} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{title}</p>
-                    <p className="truncate text-xs text-muted-foreground">{artists}</p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="size-12 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/20">
+                      {song.album_art_path ? (
+                        <img
+                          src={convertFileSrc(song.album_art_path)}
+                          alt={song.title}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : null}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{title}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {artists} - {song.album}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                          {song.is_analyzed ? "Analysed" : "Unanalysed"}
+                        </span>
+                        {song.is_video && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            Video
+                          </span>
+                        )}
+                        {song.language && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                            {song.language.toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <Button
                     size="sm"
                     variant="outline"
                     className="w-full sm:w-auto"
-                    disabled={!me}
+                    disabled={!me || inQueue}
                     onClick={() => actions.addToQueue(song as unknown as Record<string, unknown>)}
                   >
-                    Add
+                    {inQueue ? "Queued" : "Add"}
                   </Button>
                 </div>
               );
@@ -310,6 +520,25 @@ export function KaraokeJoinPage() {
               ))}
             </div>
           )}
+          {pendingImports.length > 0 && (
+            <div className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+              <p className="text-xs font-medium text-muted-foreground">Import status</p>
+              {pendingImports.map((entry) => (
+                <div key={entry.key} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate">
+                    {entry.title} - {entry.artist}
+                  </span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {entry.stage.kind === "downloading" && "Downloading"}
+                    {entry.stage.kind === "waiting-library" && "Waiting analysis"}
+                    {entry.stage.kind === "analyzing" && `Analyzing ${entry.stage.pct}%`}
+                    {entry.stage.kind === "queued" && "Added to queue"}
+                    {entry.stage.kind === "failed" && "Failed"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div id="join-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
@@ -333,6 +562,22 @@ export function KaraokeJoinPage() {
               onClick={() => actions.adminAction("next-song")}
             >
               Skip Song
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full md:w-auto"
+              disabled={!canControl}
+              onClick={() => actions.adminAction("skip-intro")}
+            >
+              Skip Intro
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full md:w-auto"
+              disabled={!canControl}
+              onClick={() => actions.adminAction("skip-outro")}
+            >
+              Skip Outro
             </Button>
             <Button
               variant="outline"

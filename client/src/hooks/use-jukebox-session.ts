@@ -38,6 +38,8 @@ export interface JukeboxSessionSnapshot {
   position_ms: number;
   guide_volume: number;
   mic_monitoring: boolean;
+  skip_intro_signal: number;
+  skip_outro_signal: number;
   pitch_hz: number | null;
   rms: number | null;
   mic_owner: number | null;
@@ -213,7 +215,14 @@ export function useJukeboxSession(options?: UseJukeboxSessionOptions) {
             ? { allow_guest_controls: patch.allowGuestControls }
             : {}),
         }),
-      adminAction: (action: "clear-queue" | "next-song" | "rescan-library") =>
+      adminAction: (
+        action:
+          | "clear-queue"
+          | "next-song"
+          | "skip-intro"
+          | "skip-outro"
+          | "rescan-library",
+      ) =>
         sendFrame({ type: "admin.action", action }),
     }),
     [sendFrame],
