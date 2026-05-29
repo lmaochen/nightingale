@@ -1,13 +1,16 @@
 import {
+  usePlaybackMicActions,
   usePlaybackMicState,
+  usePlaybackThemeActions,
   usePlaybackThemeState,
   usePlaybackTranscriptActions,
   usePlaybackTranscriptState,
   usePlaybackTransportActions,
   usePlaybackTransportState,
 } from "@/contexts/playback";
-import type { VideoFlavor } from "@/lib/playback/video-flavor";
-import { forwardRef, memo, useEffect, useRef } from "react";
+import { useGuideControls } from "@/hooks/playback";
+import type { AppConfig } from "@/types/AppConfig";
+import { forwardRef, memo, useCallback, useEffect, useRef } from "react";
 import { isPixabayTheme, themeName } from "./background";
 
 function formatTime(seconds: number): string {
@@ -18,11 +21,7 @@ function formatTime(seconds: number): string {
 
 function formatGuideText(volume: number): string {
   const pct = Math.round(volume * 100);
-  return pct === 0 ? "Guide: OFF" : `Guide: ${pct}% [G +/-]`;
-}
-
-function formatThemeText(themeIndex: number, videoFlavor: VideoFlavor): string {
-  return `Theme: ${themeName(themeIndex, videoFlavor)} [T${isPixabayTheme(themeIndex) ? "/F" : ""}]`;
+  return pct === 0 ? "Guide: OFF" : `Guide: ${pct}%`;
 }
 
 const SkipButton = forwardRef<HTMLButtonElement, { label: string; onClick: () => void }>(
@@ -38,8 +37,39 @@ const SkipButton = forwardRef<HTMLButtonElement, { label: string; onClick: () =>
   ),
 );
 
-function HintText({ children, fontSize = "sm" }: { children: React.ReactNode; fontSize?: string }) {
-  return <p className={`text-${fontSize} text-white/50`}>{children}</p>;
+/**
+ * A tappable shortcut chip. Shows the keyboard key (so it doubles as a hint)
+ * while giving touch users a real, finger-sized target for the same action.
+ */
+function KeyChip({
+  label,
+  ariaLabel,
+  onClick,
+}: {
+  label: string;
+  ariaLabel: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="pointer-events-auto inline-flex min-h-[1.75rem] min-w-[1.75rem] touch-manipulation items-center justify-center rounded-sm border border-white/20 px-1.5 text-xs text-white/70 transition-colors hover:bg-white/15 active:bg-white/30"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** A HUD row: greyed-out status text followed by its tappable shortcut chips. */
+function HintRow({ text, children }: { text: string; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm text-white/50">
+      <span>{text}</span>
+      {children}
+    </div>
+  );
 }
 
 const FOOTER_NOTE_CLASS = `pointer-events-none absolute bottom-2 z-20 text-[0.6rem] text-white/30`;
@@ -64,16 +94,30 @@ function Disclaimer({ source }: { source: string }) {
 interface PlaybackHudProps {
   title: string;
   artist: string;
+  config: AppConfig | null;
 }
 
-function PlaybackHudImpl({ title, artist }: PlaybackHudProps) {
-  const { duration, guideVolume } = usePlaybackTransportState();
-  const { subscribe, getCurrentTime } = usePlaybackTransportActions();
+function PlaybackHudImpl({ title, artist, config }: PlaybackHudProps) {
+  const { duration, guideVolume, paused } = usePlaybackTransportState();
+  const { subscribe, getCurrentTime, handlePause, handleContinue } =
+    usePlaybackTransportActions();
   const { themeIndex, videoFlavor } = usePlaybackThemeState();
+  const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
   const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec, transcriptSource } =
     usePlaybackTranscriptState();
   const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
+  const { handleToggleMic, handleCycleMic, handleToggleMicMonitor } = usePlaybackMicActions();
   const { pitchScore, micUserEnabled, micName, micMonitorUserEnabled } = usePlaybackMicState();
+  const { toggleGuide, increaseGuide, decreaseGuide } = useGuideControls(config);
+
+  // Mirrors the keyboard/gamepad "back" action: pause, or resume if paused.
+  const handleBack = useCallback(() => {
+    if (paused) {
+      handleContinue();
+    } else {
+      handlePause();
+    }
+  }, [paused, handlePause, handleContinue]);
 
   const lastSecondRef = useRef(-1);
   const timerRef = useRef<HTMLParagraphElement>(null);
@@ -123,15 +167,31 @@ function PlaybackHudImpl({ title, artist }: PlaybackHudProps) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-end gap-1">
           <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
             Score: {pitchScore ?? "--"}
           </div>
-          <HintText>{formatGuideText(guideVolume)}</HintText>
-          <HintText>Mic: {micUserEnabled ? micName : "OFF"} [M/N]</HintText>
-          <HintText>Monitor: {micMonitorUserEnabled ? "ON" : "OFF"} [R]</HintText>
-          <HintText>{formatThemeText(themeIndex, videoFlavor)}</HintText>
-          <HintText>[ESC] Back</HintText>
+          <HintRow text={formatGuideText(guideVolume)}>
+            <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={toggleGuide} />
+            <KeyChip label="+" ariaLabel="Increase guide volume" onClick={increaseGuide} />
+            <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={decreaseGuide} />
+          </HintRow>
+          <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
+            <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
+            <KeyChip label="N" ariaLabel="Next microphone" onClick={handleCycleMic} />
+          </HintRow>
+          <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
+            <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
+          </HintRow>
+          <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
+            <KeyChip label="T" ariaLabel="Cycle theme" onClick={cycleTheme} />
+            {isPixabayTheme(themeIndex) && (
+              <KeyChip label="F" ariaLabel="Cycle video flavor" onClick={cycleFlavor} />
+            )}
+          </HintRow>
+          <HintRow text="Back">
+            <KeyChip label="ESC" ariaLabel="Back" onClick={handleBack} />
+          </HintRow>
         </div>
       </div>
 

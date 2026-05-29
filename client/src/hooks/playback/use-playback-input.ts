@@ -7,7 +7,7 @@ import {
   usePlaybackTransportState,
 } from "@/contexts/playback";
 import { useNavInput } from "@/hooks/navigation/use-nav-input";
-import { usePlaybackConfigPersist } from "@/hooks/playback/use-playback-config-persist";
+import { useGuideControls } from "@/hooks/playback/use-guide-controls";
 import type { AppConfig } from "@/types/AppConfig";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -17,15 +17,13 @@ import { useCallback, useEffect, useRef } from "react";
  * persist guide-volume changes without coupling this hook to the config query.
  */
 export function usePlaybackInput(config: AppConfig | null) {
-  const { paused, isReady, guideVolume } = usePlaybackTransportState();
-  const { getCurrentTime, setGuideVolume, handlePause, handleContinue } =
-    usePlaybackTransportActions();
+  const { paused, isReady } = usePlaybackTransportState();
+  const { getCurrentTime, handlePause, handleContinue } = usePlaybackTransportActions();
   const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
   const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec } = usePlaybackTranscriptState();
   const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
   const { handleToggleMic, handleCycleMic, handleToggleMicMonitor } = usePlaybackMicActions();
-
-  const persistConfig = usePlaybackConfigPersist(config);
+  const { toggleGuide, increaseGuide, decreaseGuide } = useGuideControls(config);
 
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
@@ -96,27 +94,18 @@ export function usePlaybackInput(config: AppConfig | null) {
           break;
 
         case "g":
-        case "G": {
-          const nextVol = guideVolume > 0 ? 0 : 0.3;
-          setGuideVolume(nextVol);
-          persistConfig({ guide_volume: nextVol });
+        case "G":
+          toggleGuide();
           break;
-        }
 
         case "=":
-        case "+": {
-          const next = Math.min(1, guideVolume + 0.1);
-          setGuideVolume(next);
-          persistConfig({ guide_volume: next });
+        case "+":
+          increaseGuide();
           break;
-        }
 
-        case "-": {
-          const next = Math.max(0, guideVolume - 0.1);
-          setGuideVolume(next);
-          persistConfig({ guide_volume: next });
+        case "-":
+          decreaseGuide();
           break;
-        }
 
         case "m":
         case "M":
@@ -139,11 +128,11 @@ export function usePlaybackInput(config: AppConfig | null) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [
     paused,
-    guideVolume,
-    setGuideVolume,
+    toggleGuide,
+    increaseGuide,
+    decreaseGuide,
     cycleTheme,
     cycleFlavor,
-    persistConfig,
     handlePause,
     handleContinue,
     handleToggleMic,
