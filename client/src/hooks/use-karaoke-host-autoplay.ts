@@ -118,10 +118,12 @@ export function useKaraokeHostAutoplay() {
       prewarmedHashesRef.current.add(hash);
     }
 
-    void ensureMp3Stems(hash).catch(() => {
+    try {
+      ensureMp3Stems(hash);
+    } catch {
       // Allow retry on transient failures.
       prewarmedHashesRef.current.delete(hash);
-    });
+    }
   }, [isHostDevice, snapshot, songs]);
 
   useEffect(() => {
