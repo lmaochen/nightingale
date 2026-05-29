@@ -25,7 +25,7 @@ import { useEffect, useRef, useState } from "react";
 import { useDialogNav } from "@/hooks/navigation/use-dialog-nav";
 import { setFullScreen, isFullScreen as tauriIsFullScreen } from "@/bridge/fullScreen";
 import { getPlaybackWarmupStatus, warmServerPcmCache, warmStemsCache } from "@/bridge/playback";
-import { loadSongs } from "@/bridge/songs";
+import { getPreloadedSongsMeta, loadSongsMeta } from "@/bridge/songs";
 import { useDialog } from "@/hooks/use-dialog";
 import { useConfig } from "@/queries/use-config";
 import { useConfigMutation } from "@/mutations/use-config-mutation";
@@ -131,15 +131,11 @@ export const SettingsDialog = () => {
   const { mode, close } = useDialog();
   const { data: config } = useConfig();
   const { mutate } = useConfigMutation();
-  const { data: pcmEstimateSongs } = useQuery({
-    queryKey: ["settings-server-pcm-estimate"],
-    queryFn: async () =>
-      loadSongs({
-        search: null,
-        filters: { artist: null, album: null, query: null },
-        skip: 0,
-        take: 10000,
-      }),
+  const { data: pcmEstimateMeta } = useQuery({
+    queryKey: ["settings-server-pcm-estimate-meta"],
+    queryFn: loadSongsMeta,
+    initialData: getPreloadedSongsMeta(),
+    enabled: mode === "settings",
     staleTime: 60_000,
   });
 
@@ -315,17 +311,15 @@ export const SettingsDialog = () => {
   const karaokeEnabled = config?.karaoke_enabled ?? DEFAULT_KARAOKE_ENABLED;
   const karaokeAllowGuestControls =
     config?.karaoke_allow_guest_controls ?? DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS;
-  const totalDurationSeconds = (pcmEstimateSongs?.processed ?? []).reduce(
-    (sum, song) => sum + (song.duration_secs > 0 ? song.duration_secs : 0),
-    0,
-  );
+  const estimatedSongCount = pcmEstimateMeta?.processed_count ?? 0;
+  const ESTIMATED_AVG_SONG_SECONDS = 240;
+  const totalDurationSeconds = estimatedSongCount * ESTIMATED_AVG_SONG_SECONDS;
   const pcmBytesPerMinutePerStem = playbackPerformanceMode
     ? WAV_MONO_22K16_BYTES_PER_MINUTE_PER_STEM
     : WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM;
   const estimatedPcmBytes =
     (totalDurationSeconds / 60) * pcmBytesPerMinutePerStem * 2;
   const estimatedPcmSizeLabel = formatBytesEstimate(estimatedPcmBytes);
-  const estimatedSongCount = pcmEstimateSongs?.processed.length ?? 0;
 
   const commitDowntifyBaseUrl = () => {
     const trimmed = downtifyBaseUrlDraft.trim();
@@ -677,7 +671,7 @@ export const SettingsDialog = () => {
               <Label>Server PCM Cache Warmup</Label>
               <FieldDescription>
                 Pre-convert cached stems to WAV for server PCM mode. Estimated extra disk:{" "}
-                {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs
+                {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs (4-min/song estimate)
                 {playbackPerformanceMode ? " (performance profile)" : " (full-quality profile)"}.
               </FieldDescription>
               <p className="text-xs text-muted-foreground">
