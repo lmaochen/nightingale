@@ -18,6 +18,7 @@ impl AppState {
                 config.karaoke_enabled(),
                 config.karaoke_pin(),
                 config.karaoke_allow_guest_controls(),
+                config.guide_volume.unwrap_or(0.3),
             )),
         }
     }
