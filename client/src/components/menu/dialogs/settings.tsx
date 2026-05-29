@@ -69,7 +69,7 @@ const AUTO_RESCAN_SECONDS_MAX = 3600;
 const AUTO_RESCAN_SECONDS_STEP = 30;
 const DEFAULT_AUTO_ANALYZE_NEW_CONTENT = false;
 const DEFAULT_DOWNTIFY_BASE_URL = "http://karaoke.local:8000";
-const DEFAULT_KARAOKE_ENABLED = false;
+const DEFAULT_KARAOKE_ENABLED = true;
 const DEFAULT_KARAOKE_PIN = "1234";
 const DEFAULT_KARAOKE_DISPLAY_NAME = "Host";
 const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
@@ -255,7 +255,7 @@ export const SettingsDialog = () => {
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto scrollbar-hide">
+      <DialogContent className="sm:max-w-lg max-h-[92dvh] overflow-y-auto pr-2">
         <div ref={containerRef} className="contents">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
@@ -458,7 +458,7 @@ export const SettingsDialog = () => {
               <FieldDescription>
                 Automatically analyze songs and videos newly discovered during scans
               </FieldDescription>
-              <ButtonGroup>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
                 <Button
                   variant={autoAnalyzeNewContent ? "default" : "outline"}
                   onClick={() => mutate({ auto_analyze_new_content: true })}
@@ -497,7 +497,7 @@ export const SettingsDialog = () => {
             <Field>
               <Label>Karaoke Session Mode</Label>
               <FieldDescription>Enable host/guest phone control mode</FieldDescription>
-              <ButtonGroup>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
                 <Button
                   variant={karaokeEnabled ? "default" : "outline"}
                   onClick={() => mutate({ karaoke_enabled: true })}
@@ -553,7 +553,7 @@ export const SettingsDialog = () => {
               <FieldDescription>
                 Allow guests to use playback/settings/admin actions (not just queue)
               </FieldDescription>
-              <ButtonGroup>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
                 <Button
                   variant={karaokeAllowGuestControls ? "default" : "outline"}
                   onClick={() => mutate({ karaoke_allow_guest_controls: true })}

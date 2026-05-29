@@ -346,7 +346,7 @@ impl AppConfig {
     }
 
     pub fn karaoke_enabled(&self) -> bool {
-        self.karaoke_enabled.unwrap_or(false)
+        self.karaoke_enabled.unwrap_or(true)
     }
 
     pub fn karaoke_pin(&self) -> String {

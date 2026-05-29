@@ -59,23 +59,23 @@ export function KaraokeJoinPage() {
 
         <div className="rounded-lg border border-border/60 p-4">
           <h2 className="text-lg font-semibold">Search and Add Songs</h2>
-          <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+          <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search tracks..."
               disabled={!me}
             />
-            <Button type="submit" disabled={!me || searching || !query.trim()}>
+            <Button type="submit" className="w-full sm:w-auto" disabled={!me || searching || !query.trim()}>
               {searching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
             </Button>
           </form>
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid gap-2 max-h-[46vh] overflow-y-auto pr-1">
             {results.map((song) => {
               const title = typeof song.name === "string" ? song.name : "Unknown title";
               const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
               return (
-                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex items-center justify-between rounded-md border p-2">
+                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{title}</p>
                     <p className="truncate text-xs text-muted-foreground">{artists}</p>
@@ -83,6 +83,7 @@ export function KaraokeJoinPage() {
                   <Button
                     size="sm"
                     variant="outline"
+                    className="w-full sm:w-auto"
                     disabled={!me}
                     onClick={() => actions.addToQueue(song as Record<string, unknown>)}
                   >
@@ -99,9 +100,10 @@ export function KaraokeJoinPage() {
           <p className="mt-1 text-xs text-muted-foreground">
             Controls are currently {canControl ? "enabled" : "disabled"} for your role.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2 md:flex md:flex-wrap">
             <Button
               variant="outline"
+              className="w-full md:w-auto"
               disabled={!canControl}
               onClick={() => actions.patchPlayback({ paused: !(snapshot?.paused ?? false) })}
             >
@@ -109,6 +111,7 @@ export function KaraokeJoinPage() {
             </Button>
             <Button
               variant="outline"
+              className="w-full md:w-auto"
               disabled={!canControl}
               onClick={() => actions.patchSettings({ micMonitoring: !(snapshot?.mic_monitoring ?? false) })}
             >
@@ -116,6 +119,7 @@ export function KaraokeJoinPage() {
             </Button>
             <Button
               variant="outline"
+              className="w-full md:w-auto"
               disabled={!canControl}
               onClick={() => actions.patchSettings({ guideVolume: Math.max(0, (snapshot?.guide_volume ?? 0.3) - 0.1) })}
             >
@@ -123,6 +127,7 @@ export function KaraokeJoinPage() {
             </Button>
             <Button
               variant="outline"
+              className="w-full md:w-auto"
               disabled={!canControl}
               onClick={() => actions.patchSettings({ guideVolume: Math.min(1, (snapshot?.guide_volume ?? 0.3) + 0.1) })}
             >
@@ -130,6 +135,7 @@ export function KaraokeJoinPage() {
             </Button>
             <Button
               variant="outline"
+              className="col-span-2 w-full md:w-auto"
               disabled={!canControl}
               onClick={() =>
                 actions.patchSettings({
@@ -146,7 +152,7 @@ export function KaraokeJoinPage() {
           <h2 className="text-lg font-semibold">Queue</h2>
           <div className="mt-3 space-y-2">
             {(snapshot?.queue ?? []).map((item) => (
-              <div key={item.id} className="flex items-center justify-between rounded-md border p-2">
+              <div key={item.id} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{item.title}</p>
                   <p className="truncate text-xs text-muted-foreground">
@@ -154,7 +160,7 @@ export function KaraokeJoinPage() {
                   </p>
                 </div>
                 {canControl && (
-                  <Button size="sm" variant="outline" onClick={() => actions.removeFromQueue(item.id)}>
+                  <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => actions.removeFromQueue(item.id)}>
                     Remove
                   </Button>
                 )}

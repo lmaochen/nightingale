@@ -37,7 +37,7 @@ export function KaraokeHostPage() {
   return (
     <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
       <div className="mx-auto max-w-6xl space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <ArrowLeftIcon className="size-4" /> Back to menu
           </Link>
@@ -73,21 +73,36 @@ export function KaraokeHostPage() {
             <h2 className="text-lg font-semibold">Queue</h2>
             <div className="mt-3 space-y-2">
               {(snapshot?.queue ?? []).map((item, idx) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 rounded-md border p-2">
+                <div key={item.id} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{item.title}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       {item.artist} - by {item.requested_by_display_name}
                     </p>
                   </div>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="outline" onClick={() => actions.reorderQueue(item.id, Math.max(0, idx - 1))}>
+                  <div className="grid grid-cols-3 gap-1 sm:flex">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => actions.reorderQueue(item.id, Math.max(0, idx - 1))}
+                    >
                       Up
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => actions.reorderQueue(item.id, idx + 1)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => actions.reorderQueue(item.id, idx + 1)}
+                    >
                       Down
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => actions.removeFromQueue(item.id)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => actions.removeFromQueue(item.id)}
+                    >
                       Remove
                     </Button>
                   </div>
@@ -101,25 +116,41 @@ export function KaraokeHostPage() {
 
           <div className="rounded-lg border border-border/60 p-4">
             <h2 className="text-lg font-semibold">Host Controls</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => actions.patchPlayback({ paused: !(snapshot?.paused ?? false) })}>
+            <div className="mt-3 grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+              <Button
+                variant="outline"
+                className="w-full md:w-auto"
+                onClick={() => actions.patchPlayback({ paused: !(snapshot?.paused ?? false) })}
+              >
                 {snapshot?.paused ? "Resume" : "Pause"}
               </Button>
-              <Button variant="outline" onClick={() => actions.adminAction("next-song")}>
+              <Button variant="outline" className="w-full md:w-auto" onClick={() => actions.adminAction("next-song")}>
                 Next Song
               </Button>
-              <Button variant="outline" onClick={() => actions.adminAction("clear-queue")}>
+              <Button variant="outline" className="w-full md:w-auto" onClick={() => actions.adminAction("clear-queue")}>
                 Clear Queue
               </Button>
-              <Button variant="outline" onClick={() => actions.adminAction("rescan-library")}>
+              <Button
+                variant="outline"
+                className="w-full md:w-auto"
+                onClick={() => actions.adminAction("rescan-library")}
+              >
                 Rescan Library
               </Button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button variant="outline" onClick={() => actions.patchSettings({ micMonitoring: !(snapshot?.mic_monitoring ?? false) })}>
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:flex-wrap">
+              <Button
+                variant="outline"
+                className="w-full md:w-auto"
+                onClick={() => actions.patchSettings({ micMonitoring: !(snapshot?.mic_monitoring ?? false) })}
+              >
                 Mic Monitor: {snapshot?.mic_monitoring ? "ON" : "OFF"}
               </Button>
-              <Button variant="outline" onClick={() => actions.patchSettings({ allowGuestControls: !(snapshot?.allow_guest_controls ?? true) })}>
+              <Button
+                variant="outline"
+                className="w-full md:w-auto"
+                onClick={() => actions.patchSettings({ allowGuestControls: !(snapshot?.allow_guest_controls ?? true) })}
+              >
                 Guest Controls: {snapshot?.allow_guest_controls ? "ON" : "OFF"}
               </Button>
             </div>
@@ -128,23 +159,28 @@ export function KaraokeHostPage() {
 
         <div className="rounded-lg border border-border/60 p-4">
           <h2 className="text-lg font-semibold">Add Song (Downtify Search)</h2>
-          <form onSubmit={handleSearch} className="mt-3 flex gap-2">
+          <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search songs..." />
-            <Button type="submit" disabled={searching || !query.trim()}>
+            <Button type="submit" className="w-full sm:w-auto" disabled={searching || !query.trim()}>
               {searching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
             </Button>
           </form>
-          <div className="mt-3 grid gap-2">
+          <div className="mt-3 grid gap-2 max-h-[48vh] overflow-y-auto pr-1">
             {results.map((song) => {
               const title = typeof song.name === "string" ? song.name : "Unknown title";
               const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
               return (
-                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex items-center justify-between rounded-md border p-2">
+                <div key={`${song.song_id ?? song.url ?? title}-${artists}`} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium">{title}</p>
                     <p className="truncate text-xs text-muted-foreground">{artists}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => actions.addToQueue(song as Record<string, unknown>)}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => actions.addToQueue(song as Record<string, unknown>)}
+                  >
                     Add
                   </Button>
                 </div>
