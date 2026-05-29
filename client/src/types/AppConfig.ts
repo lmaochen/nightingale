@@ -31,6 +31,22 @@ export type AppConfig = {
   asr_engine: string | null;
   language_overrides: { [key in string]: string } | null;
   /**
+   * Enables host/guest karaoke session mode in the web UI.
+   */
+  karaoke_enabled: boolean | null;
+  /**
+   * Join code guests must enter on their phones.
+   */
+  karaoke_pin: string | null;
+  /**
+   * Default display name for the host controller.
+   */
+  karaoke_display_name: string | null;
+  /**
+   * Whether non-host guests can use playback/settings/admin controls.
+   */
+  karaoke_allow_guest_controls: boolean | null;
+  /**
    * Base URL for the local Downtify instance used by "Request Song".
    */
   downtify_base_url: string | null;

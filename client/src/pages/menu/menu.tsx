@@ -17,7 +17,6 @@ import { SongList } from "@/components/menu/song-list/song-list";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { EXIT_SUPPORTED } from "@/bridge/exit";
 import { useMenuNav } from "@/hooks/navigation/use-menu-nav";
-import { useDowntifyQueueSync } from "@/hooks/use-downtify-queue-sync";
 import { useDialog } from "@/hooks/use-dialog";
 import { useShouldRunSetup } from "@/hooks/use-should-run-setup";
 import { useSongsMeta } from "@/queries/use-songs";
@@ -27,7 +26,6 @@ export const Menu = () => {
   const { data: meta, isLoading: isLoadingMeta } = useSongsMeta();
   const { mode, setMode } = useDialog();
   const { shouldRunSetup } = useShouldRunSetup();
-  useDowntifyQueueSync();
 
   const overlayOpen = mode !== null || shouldRunSetup;
 

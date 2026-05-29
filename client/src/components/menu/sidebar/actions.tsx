@@ -29,6 +29,7 @@ import {
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavInput } from "@/hooks/navigation/use-nav-input";
 import { useUpdate } from "@/queries/use-update";
+import { useNavigate } from "react-router";
 
 interface ActionsProps {
   registerCallback: (callback: (() => void) | null) => void;
@@ -37,6 +38,7 @@ interface ActionsProps {
 
 export const Actions = ({ registerCallback, focusedSidebarIndex }: ActionsProps) => {
   const { setMode } = useDialog();
+  const navigate = useNavigate();
   const profile = useCurrentProfile();
   const { focus, actionsRef } = useMenuFocus();
   const { setShouldRunSetup } = useShouldRunSetup();
@@ -185,6 +187,14 @@ export const Actions = ({ registerCallback, focusedSidebarIndex }: ActionsProps)
               <DropdownMenuItem onClick={() => setMode("request-song")}>
                 <SearchIcon />
                 Request Song
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/host")}>
+                <SearchIcon />
+                Karaoke Host
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/join")}>
+                <SearchIcon />
+                Karaoke Join
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setMode("update")}>
                 <DownloadIcon />

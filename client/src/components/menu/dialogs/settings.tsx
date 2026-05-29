@@ -69,12 +69,16 @@ const AUTO_RESCAN_SECONDS_MAX = 3600;
 const AUTO_RESCAN_SECONDS_STEP = 30;
 const DEFAULT_AUTO_ANALYZE_NEW_CONTENT = false;
 const DEFAULT_DOWNTIFY_BASE_URL = "http://karaoke.local:8000";
+const DEFAULT_KARAOKE_ENABLED = false;
+const DEFAULT_KARAOKE_PIN = "1234";
+const DEFAULT_KARAOKE_DISPLAY_NAME = "Host";
+const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
 
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
 // The playback/tuning rows sit between Batch Size and the footer.
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 1, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 1, 2];
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 1, 2, 1, 1, 2, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 1, 2, 1, 1, 2, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -109,6 +113,16 @@ export const SettingsDialog = () => {
   useEffect(() => {
     setDowntifyBaseUrlDraft(config?.downtify_base_url ?? DEFAULT_DOWNTIFY_BASE_URL);
   }, [config?.downtify_base_url]);
+  const [karaokePinDraft, setKaraokePinDraft] = useState(config?.karaoke_pin ?? DEFAULT_KARAOKE_PIN);
+  const [karaokeDisplayNameDraft, setKaraokeDisplayNameDraft] = useState(
+    config?.karaoke_display_name ?? DEFAULT_KARAOKE_DISPLAY_NAME,
+  );
+  useEffect(() => {
+    setKaraokePinDraft(config?.karaoke_pin ?? DEFAULT_KARAOKE_PIN);
+  }, [config?.karaoke_pin]);
+  useEffect(() => {
+    setKaraokeDisplayNameDraft(config?.karaoke_display_name ?? DEFAULT_KARAOKE_DISPLAY_NAME);
+  }, [config?.karaoke_display_name]);
 
   const asrEngine = config?.asr_engine ?? DEFAULT_ASR_ENGINE;
   const isParakeet = asrEngine === "parakeet";
@@ -124,6 +138,10 @@ export const SettingsDialog = () => {
   const autoRescanSegment = batchSegment + 3;
   const autoAnalyzeSegment = batchSegment + 4;
   const downtifyBaseUrlSegment = batchSegment + 5;
+  const karaokeEnabledSegment = batchSegment + 6;
+  const karaokePinSegment = batchSegment + 7;
+  const karaokeDisplayNameSegment = batchSegment + 8;
+  const karaokeAllowGuestControlsSegment = batchSegment + 9;
 
   const { isFocused } = useDialogNav({
     open,
@@ -218,10 +236,21 @@ export const SettingsDialog = () => {
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
   const downtifyBaseUrl = config?.downtify_base_url ?? DEFAULT_DOWNTIFY_BASE_URL;
+  const karaokeEnabled = config?.karaoke_enabled ?? DEFAULT_KARAOKE_ENABLED;
+  const karaokeAllowGuestControls =
+    config?.karaoke_allow_guest_controls ?? DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS;
 
   const commitDowntifyBaseUrl = () => {
     const trimmed = downtifyBaseUrlDraft.trim();
     mutate({ downtify_base_url: trimmed.length > 0 ? trimmed : null });
+  };
+  const commitKaraokePin = () => {
+    const trimmed = karaokePinDraft.trim();
+    mutate({ karaoke_pin: trimmed.length > 0 ? trimmed : null });
+  };
+  const commitKaraokeDisplayName = () => {
+    const trimmed = karaokeDisplayNameDraft.trim();
+    mutate({ karaoke_display_name: trimmed.length > 0 ? trimmed : null });
   };
 
   return (
@@ -465,6 +494,82 @@ export const SettingsDialog = () => {
                 className={generateRingClassName(downtifyBaseUrlSegment)}
               />
             </Field>
+            <Field>
+              <Label>Karaoke Session Mode</Label>
+              <FieldDescription>Enable host/guest phone control mode</FieldDescription>
+              <ButtonGroup>
+                <Button
+                  variant={karaokeEnabled ? "default" : "outline"}
+                  onClick={() => mutate({ karaoke_enabled: true })}
+                  className={generateRingClassName(karaokeEnabledSegment, 0)}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!karaokeEnabled ? "default" : "outline"}
+                  onClick={() => mutate({ karaoke_enabled: false })}
+                  className={generateRingClassName(karaokeEnabledSegment, 1)}
+                >
+                  Off
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
+              <Label>Karaoke Join Code</Label>
+              <FieldDescription>Guests join with this PIN on their phones</FieldDescription>
+              <Input
+                value={karaokePinDraft}
+                onChange={(e) => setKaraokePinDraft(e.target.value)}
+                onBlur={commitKaraokePin}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitKaraokePin();
+                  }
+                }}
+                placeholder={DEFAULT_KARAOKE_PIN}
+                className={generateRingClassName(karaokePinSegment)}
+              />
+            </Field>
+            <Field>
+              <Label>Host Display Name</Label>
+              <FieldDescription>Name shown when host controls the session</FieldDescription>
+              <Input
+                value={karaokeDisplayNameDraft}
+                onChange={(e) => setKaraokeDisplayNameDraft(e.target.value)}
+                onBlur={commitKaraokeDisplayName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitKaraokeDisplayName();
+                  }
+                }}
+                placeholder={DEFAULT_KARAOKE_DISPLAY_NAME}
+                className={generateRingClassName(karaokeDisplayNameSegment)}
+              />
+            </Field>
+            <Field>
+              <Label>Guest Control Permissions</Label>
+              <FieldDescription>
+                Allow guests to use playback/settings/admin actions (not just queue)
+              </FieldDescription>
+              <ButtonGroup>
+                <Button
+                  variant={karaokeAllowGuestControls ? "default" : "outline"}
+                  onClick={() => mutate({ karaoke_allow_guest_controls: true })}
+                  className={generateRingClassName(karaokeAllowGuestControlsSegment, 0)}
+                >
+                  Allow
+                </Button>
+                <Button
+                  variant={!karaokeAllowGuestControls ? "default" : "outline"}
+                  onClick={() => mutate({ karaoke_allow_guest_controls: false })}
+                  className={generateRingClassName(karaokeAllowGuestControlsSegment, 1)}
+                >
+                  Queue Only
+                </Button>
+              </ButtonGroup>
+            </Field>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -480,6 +585,10 @@ export const SettingsDialog = () => {
                   auto_rescan_seconds: DEFAULT_AUTO_RESCAN_SECONDS,
                   auto_analyze_new_content: DEFAULT_AUTO_ANALYZE_NEW_CONTENT,
                   downtify_base_url: null,
+                  karaoke_enabled: null,
+                  karaoke_pin: null,
+                  karaoke_display_name: null,
+                  karaoke_allow_guest_controls: null,
                   lyrics_position: DEFAULT_LYRICS_POSITION,
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                 })

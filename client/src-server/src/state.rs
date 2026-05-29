@@ -11,9 +11,14 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
+        let config = app_core::AppConfig::load();
         Self {
             events: Arc::new(EventBus::new()),
-            jukebox: Arc::new(JukeboxStore::new()),
+            jukebox: Arc::new(JukeboxStore::new(
+                config.karaoke_enabled(),
+                config.karaoke_pin(),
+                config.karaoke_allow_guest_controls(),
+            )),
         }
     }
 }

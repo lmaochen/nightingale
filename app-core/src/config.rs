@@ -116,6 +116,14 @@ pub struct AppConfig {
     pub separator: Option<String>,
     pub asr_engine: Option<String>,
     pub language_overrides: Option<HashMap<String, String>>,
+    /// Enables host/guest karaoke session mode in the web UI.
+    pub karaoke_enabled: Option<bool>,
+    /// Join code guests must enter on their phones.
+    pub karaoke_pin: Option<String>,
+    /// Default display name for the host controller.
+    pub karaoke_display_name: Option<String>,
+    /// Whether non-host guests can use playback/settings/admin controls.
+    pub karaoke_allow_guest_controls: Option<bool>,
     /// Base URL for the local Downtify instance used by "Request Song".
     pub downtify_base_url: Option<String>,
     /// Periodically trigger a background library rescan. `None`/`0` disables
@@ -155,6 +163,10 @@ impl Default for AppConfig {
             separator: None,
             asr_engine: None,
             language_overrides: None,
+            karaoke_enabled: None,
+            karaoke_pin: None,
+            karaoke_display_name: None,
+            karaoke_allow_guest_controls: None,
             downtify_base_url: None,
             auto_rescan_seconds: None,
             auto_analyze_new_content: None,
@@ -331,6 +343,32 @@ impl AppConfig {
 
     pub fn auto_analyze_new_content(&self) -> bool {
         self.auto_analyze_new_content.unwrap_or(false)
+    }
+
+    pub fn karaoke_enabled(&self) -> bool {
+        self.karaoke_enabled.unwrap_or(false)
+    }
+
+    pub fn karaoke_pin(&self) -> String {
+        self.karaoke_pin
+            .as_deref()
+            .map(str::trim)
+            .filter(|pin| !pin.is_empty())
+            .unwrap_or("1234")
+            .to_string()
+    }
+
+    pub fn karaoke_display_name(&self) -> String {
+        self.karaoke_display_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|name| !name.is_empty())
+            .unwrap_or("Host")
+            .to_string()
+    }
+
+    pub fn karaoke_allow_guest_controls(&self) -> bool {
+        self.karaoke_allow_guest_controls.unwrap_or(true)
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {

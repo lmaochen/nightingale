@@ -7,12 +7,15 @@ import { NavInputProvider } from "./contexts/nav-input-context";
 import { MenuFocusProvider } from "./contexts/menu-focus-context";
 import { Menu } from "./pages/menu/menu";
 import { Playback } from "./pages/playback/playback";
+import { KaraokeHostPage } from "./pages/karaoke/host";
+import { KaraokeJoinPage } from "./pages/karaoke/join";
 import { ThemeProvider } from "./contexts/theme-context";
 import { useConfig } from "./queries/use-config";
 import { useUpdate } from "./queries/use-update";
 import { Setup } from "./components/menu/dialogs/setup";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { UPDATES_SUPPORTED } from "./bridge/platform";
+import { useDowntifyQueueSync } from "./hooks/use-downtify-queue-sync";
 
 const queryClient = new QueryClient();
 
@@ -22,13 +25,22 @@ const UpdateAutoCheck = () => {
   return null;
 };
 
+const DowntifyQueueAutoSync = () => {
+  useDowntifyQueueSync();
+
+  return null;
+};
+
 const InnerWrapper = () => (
   <>
     <MenuFocusProvider>
+      <DowntifyQueueAutoSync />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Menu />} />
           <Route path="/playback" element={<Playback />} />
+          <Route path="/host" element={<KaraokeHostPage />} />
+          <Route path="/join" element={<KaraokeJoinPage />} />
         </Routes>
       </BrowserRouter>
     </MenuFocusProvider>
