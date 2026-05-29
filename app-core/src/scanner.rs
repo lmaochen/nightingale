@@ -20,6 +20,7 @@ use crate::{
 };
 
 static AUTO_RESCAN_LOOP_STARTED: AtomicBool = AtomicBool::new(false);
+static DOWNTIFY_QUEUE_LOOP_STARTED: AtomicBool = AtomicBool::new(false);
 
 impl SongsStore {
     pub fn load_all() -> Self {
@@ -165,6 +166,49 @@ pub fn ensure_auto_rescan_loop() {
 
             start_scan();
             next_due = Some(now + interval);
+        }
+    });
+}
+
+/// Watches Downtify's queue endpoint and triggers an immediate rescan when its
+/// active download queue transitions from non-empty to empty.
+pub fn ensure_downtify_queue_loop() {
+    if DOWNTIFY_QUEUE_LOOP_STARTED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
+    std::thread::spawn(|| {
+        let mut previously_active = false;
+
+        loop {
+            let config = AppConfig::load();
+            let queue = match crate::downtify::load_queue(config.downtify_base_url.as_deref()) {
+                Ok(queue) => queue,
+                Err(_) => {
+                    // Downtify may be offline; retry quietly.
+                    std::thread::sleep(Duration::from_secs(2));
+                    continue;
+                }
+            };
+
+            let active_now = queue.iter().any(|entry| {
+                entry
+                    .as_object()
+                    .and_then(|obj| obj.get("status"))
+                    .and_then(|status| status.as_str())
+                    .is_some_and(|status| status == "queued" || status == "downloading")
+            });
+
+            if previously_active && !active_now {
+                info!("[scanner] Downtify queue drained; triggering immediate rescan");
+                start_scan();
+            }
+
+            previously_active = active_now;
+            std::thread::sleep(Duration::from_secs(2));
         }
     });
 }

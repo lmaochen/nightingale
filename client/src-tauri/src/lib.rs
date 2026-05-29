@@ -26,7 +26,7 @@ use playback::{
 use profile::{add_score, create_profile, delete_profile, load_profiles, switch_profile};
 use scanner::{
     clear_library_source, jellyfin_login, jellyfin_ping, load_analysis_queue,
-    downtify_queue_download, downtify_search_songs,
+    downtify_load_queue, downtify_queue_download, downtify_search_songs,
     load_library_menu_items, load_songs, load_songs_meta, navidrome_login, navidrome_ping,
     set_library_source, trigger_scan,
 };
@@ -116,6 +116,7 @@ pub fn run() {
             load_analysis_queue,
             load_library_menu_items,
             downtify_search_songs,
+            downtify_load_queue,
             downtify_queue_download,
             // Analyzer
             enqueue_one,

@@ -84,6 +84,12 @@ pub fn downtify_search_songs(query: String) -> Result<Vec<serde_json::Value>, St
 }
 
 #[tauri::command]
+pub fn downtify_load_queue() -> Result<Vec<serde_json::Value>, String> {
+    let config = AppConfig::load();
+    app_core::downtify_load_queue(config.downtify_base_url.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn downtify_queue_download(song: serde_json::Value) -> Result<(), String> {
     let config = AppConfig::load();
     app_core::downtify_queue_download(song, config.downtify_base_url.as_deref())

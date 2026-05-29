@@ -193,6 +193,12 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
                 .map_err(|e| ApiError::bad_request(e.to_string()))?;
             Ok(serde_json::to_value(songs).map_err(serde_err)?)
         }
+        "downtify_load_queue" => {
+            let config = AppConfig::load();
+            let queue = app_core::downtify_load_queue(config.downtify_base_url.as_deref())
+                .map_err(|e| ApiError::bad_request(e.to_string()))?;
+            Ok(serde_json::to_value(queue).map_err(serde_err)?)
+        }
         "downtify_queue_download" => {
             #[derive(Deserialize)]
             struct Args {
