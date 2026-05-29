@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { Loader2Icon } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 const DEFAULT_JOIN_NAME = "Guest";
 
@@ -25,6 +25,21 @@ export function KaraokeJoinPage() {
     actions.join(pin, name.trim() || DEFAULT_JOIN_NAME, false);
   };
 
+  const loadLatestSongs = useCallback(async () => {
+    setSearching(true);
+    try {
+      const result = await loadSongs({
+        search: null,
+        filters: { artist: null, album: null, query: null },
+        skip: 0,
+        take: 60,
+      });
+      setResults(result.processed);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
     const q = query.trim();
@@ -43,12 +58,17 @@ export function KaraokeJoinPage() {
     }
   };
 
+  useEffect(() => {
+    if (results.length > 0) return;
+    void loadLatestSongs();
+  }, [loadLatestSongs, results.length]);
+
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
+    <div className="h-[100dvh] overflow-y-auto overscroll-y-contain bg-background p-4 text-foreground touch-pan-y md:p-8">
       <div className="mx-auto max-w-3xl space-y-4 pb-28 md:pb-0">
         <div id="join-overview" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h1 className="text-2xl font-semibold">Join Karaoke</h1>
@@ -79,6 +99,18 @@ export function KaraokeJoinPage() {
             />
             <Button type="submit" className="w-full sm:w-auto" disabled={!me || searching || !query.trim()}>
               {searching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={searching}
+              onClick={() => {
+                setQuery("");
+                void loadLatestSongs();
+              }}
+            >
+              Browse Latest
             </Button>
           </form>
           <div className="mt-3 grid gap-2 max-h-[46vh] overflow-y-auto pr-1">

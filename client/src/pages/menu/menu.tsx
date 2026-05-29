@@ -14,6 +14,7 @@ import { UpdateDialog } from "@/components/menu/dialogs/update";
 import { Sidebar } from "@/components/menu/sidebar/sidebar";
 import { EmptySongList } from "@/components/menu/song-list/empty-song-list";
 import { SongList } from "@/components/menu/song-list/song-list";
+import { Button } from "@/components/ui/button";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { EXIT_SUPPORTED } from "@/bridge/exit";
 import { useMenuNav } from "@/hooks/navigation/use-menu-nav";
@@ -21,11 +22,13 @@ import { useDialog } from "@/hooks/use-dialog";
 import { useShouldRunSetup } from "@/hooks/use-should-run-setup";
 import { useSongsMeta } from "@/queries/use-songs";
 import { ReactElement, useCallback } from "react";
+import { useNavigate } from "react-router";
 
 export const Menu = () => {
   const { data: meta, isLoading: isLoadingMeta } = useSongsMeta();
   const { mode, setMode } = useDialog();
   const { shouldRunSetup } = useShouldRunSetup();
+  const navigate = useNavigate();
 
   const overlayOpen = mode !== null || shouldRunSetup;
 
@@ -72,7 +75,22 @@ export const Menu = () => {
       <ClearCacheDialog />
       <JellyfinConnectDialog />
       <NavidromeConnectDialog />
-      <SidebarInset>{content}</SidebarInset>
+      <SidebarInset>
+        <div className="pb-20 md:pb-0">{content}</div>
+      </SidebarInset>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-3xl grid-cols-3 gap-2">
+          <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/")}>
+            Library
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/join")}>
+            Join
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/host")}>
+            Host
+          </Button>
+        </div>
+      </div>
     </Sidebar>
   );
 };

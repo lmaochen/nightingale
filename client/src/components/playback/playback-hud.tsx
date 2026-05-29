@@ -14,6 +14,20 @@ import type { AppConfig } from "@/types/AppConfig";
 import { forwardRef, memo, useCallback, useEffect, useRef } from "react";
 import { isPixabayTheme, themeName } from "./background";
 
+const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
+
+function isHostBoothIntentActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(KARAOKE_JOIN_INTENT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { asHost?: unknown };
+    return parsed.asHost === true;
+  } catch {
+    return false;
+  }
+}
+
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds) % 60;
@@ -130,7 +144,7 @@ interface PlaybackHudProps {
 
 function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackHudProps) {
   const { duration, guideVolume, paused } = usePlaybackTransportState();
-  const { subscribe, getCurrentTime, handlePause, handleContinue } =
+  const { subscribe, getCurrentTime, handlePause, handleContinue, handleExit } =
     usePlaybackTransportActions();
   const { themeIndex, videoFlavor } = usePlaybackThemeState();
   const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
@@ -150,6 +164,13 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
     }
   }, [paused, handlePause, handleContinue]);
 
+  const handleExitHost = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(KARAOKE_JOIN_INTENT_KEY);
+    }
+    handleExit();
+  }, [handleExit]);
+
   const lastSecondRef = useRef(-1);
   const timerRef = useRef<HTMLParagraphElement>(null);
   const skipIntroRef = useRef<HTMLButtonElement>(null);
@@ -157,6 +178,7 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
 
   const showPixabayCredit = isPixabayTheme(themeIndex);
   const upcomingQueue = karaokeQueue.slice(0, 4);
+  const showExitHostButton = isHostBoothIntentActive();
 
   // Updates the timer text and skip-button visibility via direct DOM mutation
   // (rAF subscriber), only triggering a text update when the displayed second changes.
@@ -212,6 +234,15 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
         </div>
 
         <div className="flex flex-col items-end gap-1">
+          {showExitHostButton && (
+            <button
+              type="button"
+              onClick={handleExitHost}
+              className="pointer-events-auto mb-1 inline-flex min-h-[2rem] items-center justify-center rounded-sm border border-white/30 bg-black/40 px-2 py-1 text-xs text-white/90 transition-colors hover:bg-black/55 active:bg-black/70"
+            >
+              Exit Host
+            </button>
+          )}
           <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
             Score: {pitchScore ?? "--"}
           </div>

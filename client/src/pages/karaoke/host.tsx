@@ -49,9 +49,9 @@ export function KaraokeHostPage() {
   };
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black text-white">
+    <div className="fixed inset-0 overflow-y-auto overscroll-y-contain bg-black text-white touch-pan-y">
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/50 to-black" />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center sm:px-6">
+      <div className="relative z-10 flex min-h-full flex-col items-center justify-center px-4 py-6 text-center sm:px-6">
         <div className="absolute right-3 top-3 sm:right-4 sm:top-4">
           <Button variant="outline" size="sm" onClick={handleExitHost}>
             Exit Host
