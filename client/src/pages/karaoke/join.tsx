@@ -239,7 +239,7 @@ export function KaraokeJoinPage() {
     setPendingImports((prev) => {
       if (prev.length === 0) return prev;
       let changed = false;
-      const next = prev.map((entry) => {
+      const next: PendingImport[] = prev.map((entry): PendingImport => {
         const normalizedTitle = normalize(entry.title);
         const normalizedArtist = normalize(entry.artist);
         const matched = catalogSongs.find((song) => {
@@ -252,7 +252,7 @@ export function KaraokeJoinPage() {
         if (!matched) {
           if (entry.stage.kind === "downloading") {
             changed = true;
-            return { ...entry, stage: { kind: "waiting-library" } };
+            return { ...entry, stage: { kind: "waiting-library" as const } };
           }
           return entry;
         }
@@ -262,7 +262,7 @@ export function KaraokeJoinPage() {
           const pct = Math.round((analysisStatus as { Analyzing: number }).Analyzing);
           if (entry.stage.kind !== "analyzing" || entry.stage.pct !== pct) {
             changed = true;
-            return { ...entry, stage: { kind: "analyzing", pct } };
+            return { ...entry, stage: { kind: "analyzing" as const, pct } };
           }
           return entry;
         }
@@ -270,14 +270,14 @@ export function KaraokeJoinPage() {
           const message = (analysisStatus as { Failed: string }).Failed;
           if (entry.stage.kind !== "failed" || entry.stage.message !== message) {
             changed = true;
-            return { ...entry, stage: { kind: "failed", message } };
+            return { ...entry, stage: { kind: "failed" as const, message } };
           }
           return entry;
         }
         if (!matched.is_analyzed) {
           if (entry.stage.kind !== "waiting-library") {
             changed = true;
-            return { ...entry, stage: { kind: "waiting-library" } };
+            return { ...entry, stage: { kind: "waiting-library" as const } };
           }
           return entry;
         }
@@ -286,7 +286,7 @@ export function KaraokeJoinPage() {
         }
         if (entry.stage.kind !== "queued") {
           changed = true;
-          return { ...entry, stage: { kind: "queued" } };
+          return { ...entry, stage: { kind: "queued" as const } };
         }
         return entry;
       });
