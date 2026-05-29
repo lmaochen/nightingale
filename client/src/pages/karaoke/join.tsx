@@ -192,6 +192,9 @@ export function KaraokeJoinPage() {
   const hostDecodeStatus = snapshot?.host_decode_status ?? null;
   const hostDecodeSongHash = snapshot?.host_decode_song_hash ?? null;
   const hostDecodeError = snapshot?.host_decode_error ?? null;
+  const guidePct = Math.round(((snapshot?.guide_volume ?? 0.3) * 100));
+  const playbackState = snapshot?.paused ? "Paused" : "Playing";
+  const monitorState = snapshot?.mic_monitoring ? "On" : "Off";
 
   const joinSession = () => {
     actions.join(pin, name.trim() || DEFAULT_JOIN_NAME, false);
@@ -367,6 +370,26 @@ export function KaraokeJoinPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               Current Song: {snapshot.current_song ?? "--"} | Queue: {snapshot.queue.length}
             </p>
+          )}
+          {snapshot && (
+            <div className="mt-2 grid grid-cols-2 gap-2 rounded-md border border-border/60 bg-muted/20 p-2 text-xs sm:grid-cols-4">
+              <div className="rounded border border-border/60 bg-background/70 px-2 py-1">
+                <p className="text-[10px] uppercase text-muted-foreground">Playback</p>
+                <p className="font-medium">{playbackState}</p>
+              </div>
+              <div className="rounded border border-border/60 bg-background/70 px-2 py-1">
+                <p className="text-[10px] uppercase text-muted-foreground">Guide</p>
+                <p className="font-medium">{guidePct}%</p>
+              </div>
+              <div className="rounded border border-border/60 bg-background/70 px-2 py-1">
+                <p className="text-[10px] uppercase text-muted-foreground">Theme</p>
+                <p className="font-medium">#{snapshot.theme ?? 0}</p>
+              </div>
+              <div className="rounded border border-border/60 bg-background/70 px-2 py-1">
+                <p className="text-[10px] uppercase text-muted-foreground">Mic Monitor</p>
+                <p className="font-medium">{monitorState}</p>
+              </div>
+            </div>
           )}
           {nextQueuedHash && (
             <p className="mt-1 text-xs text-muted-foreground">

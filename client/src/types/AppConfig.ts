@@ -75,6 +75,10 @@ export type AppConfig = {
    */
   playback_show_pitch_graph: boolean | null;
   /**
+   * Whether animated/moving playback backgrounds are enabled.
+   */
+  playback_moving_backgrounds: boolean | null;
+  /**
    * Audio decode strategy for playback: `client_mp3` (default) or `server_pcm`.
    */
   playback_audio_decode_mode: string | null;

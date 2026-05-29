@@ -69,6 +69,7 @@ const LYRICS_FONT_SCALE_MAX = 2;
 const LYRICS_FONT_SCALE_STEP = 0.05;
 const DEFAULT_PLAYBACK_PERFORMANCE_MODE = false;
 const DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH = true;
+const DEFAULT_PLAYBACK_MOVING_BACKGROUNDS: boolean | null = null;
 const DEFAULT_PLAYBACK_AUDIO_DECODE_MODE = "client_mp3";
 const DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED = true;
 const DEFAULT_PLAYBACK_STICKY_PREDECODE = false;
@@ -300,6 +301,7 @@ export const SettingsDialog = () => {
     config?.playback_performance_mode ?? DEFAULT_PLAYBACK_PERFORMANCE_MODE;
   const playbackShowPitchGraph =
     config?.playback_show_pitch_graph ?? DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH;
+  const playbackMovingBackgrounds = config?.playback_moving_backgrounds ?? !playbackPerformanceMode;
   const playbackAudioDecodeMode =
     config?.playback_audio_decode_mode === "server_pcm"
       ? "server_pcm"
@@ -567,6 +569,26 @@ export const SettingsDialog = () => {
                   className={generateRingClassName(pitchGraphSegment, 1)}
                 >
                   Hide
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
+              <Label>Moving Backgrounds</Label>
+              <FieldDescription>
+                Enable animated playback backgrounds (disable for maximum tablet performance)
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackMovingBackgrounds ? "default" : "outline"}
+                  onClick={() => mutate({ playback_moving_backgrounds: true })}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!playbackMovingBackgrounds ? "default" : "outline"}
+                  onClick={() => mutate({ playback_moving_backgrounds: false })}
+                >
+                  Off
                 </Button>
               </ButtonGroup>
             </Field>
@@ -858,6 +880,7 @@ export const SettingsDialog = () => {
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                   playback_performance_mode: DEFAULT_PLAYBACK_PERFORMANCE_MODE,
                   playback_show_pitch_graph: DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH,
+                  playback_moving_backgrounds: DEFAULT_PLAYBACK_MOVING_BACKGROUNDS,
                   playback_audio_decode_mode: DEFAULT_PLAYBACK_AUDIO_DECODE_MODE,
                   playback_warmup_cache_enabled: DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED,
                   playback_sticky_predecode: DEFAULT_PLAYBACK_STICKY_PREDECODE,

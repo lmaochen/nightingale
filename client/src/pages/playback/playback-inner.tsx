@@ -69,6 +69,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     return snapshot.host === me.client_id || snapshot.allow_guest_controls;
   }, [snapshot, me]);
   const performanceMode = config?.playback_performance_mode ?? false;
+  const movingBackgrounds = config?.playback_moving_backgrounds ?? !performanceMode;
   const showPitchGraph = (config?.playback_show_pitch_graph ?? true) && !performanceMode;
   const configuredDecodeLabel =
     config?.playback_audio_decode_mode === "server_pcm" ? "WAV (server_pcm)" : "MP3 (client_mp3)";
@@ -173,7 +174,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>
-      <Background performanceMode={performanceMode} />
+      <Background performanceMode={performanceMode} movingBackgrounds={movingBackgrounds} />
 
       {(isBooting || !isReady) && (
         <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">

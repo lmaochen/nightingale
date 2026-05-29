@@ -250,7 +250,13 @@ function LyricsDisplayImpl({
   }, [segments, subscribe, getCurrentTime, animate, performanceMode]);
 
   if (segments.length === 0) {
-    return null;
+    return (
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-10 ${POSITION_CLASS[position]}`}
+      >
+        <p className="rounded-md bg-black/35 px-3 py-1 text-sm text-white/55">Loading lyrics...</p>
+      </div>
+    );
   }
 
   const seg = segments[segIdx];

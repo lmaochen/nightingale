@@ -80,11 +80,17 @@ function ShaderBranch({
   );
 }
 
-function BackgroundImpl({ performanceMode = false }: { performanceMode?: boolean }) {
+function BackgroundImpl({
+  performanceMode = false,
+  movingBackgrounds = true,
+}: {
+  performanceMode?: boolean;
+  movingBackgrounds?: boolean;
+}) {
   const { isReady, isPlaying } = usePlaybackTransportState();
   const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
 
-  if (performanceMode) {
+  if (!movingBackgrounds) {
     return <div className="fixed inset-0 bg-gradient-to-b from-slate-950 via-black to-slate-900" />;
   }
 

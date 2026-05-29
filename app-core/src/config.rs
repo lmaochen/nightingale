@@ -140,6 +140,8 @@ pub struct AppConfig {
     pub playback_performance_mode: Option<bool>,
     /// Show the pitch graph overlay during playback.
     pub playback_show_pitch_graph: Option<bool>,
+    /// Whether animated/moving playback backgrounds are enabled.
+    pub playback_moving_backgrounds: Option<bool>,
     /// Audio decode strategy for playback: `client_mp3` (default) or
     /// `server_pcm` (serve WAV stems when available).
     pub playback_audio_decode_mode: Option<String>,
@@ -187,6 +189,7 @@ impl Default for AppConfig {
             lyrics_font_scale: None,
             playback_performance_mode: None,
             playback_show_pitch_graph: None,
+            playback_moving_backgrounds: None,
             playback_audio_decode_mode: None,
             playback_warmup_cache_enabled: None,
             playback_sticky_predecode: None,

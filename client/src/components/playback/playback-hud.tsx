@@ -290,6 +290,12 @@ function PlaybackHudImpl({
           )}
           {liteMode ? (
             <>
+              <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
+                Score: {pitchScore ?? "--"}
+              </div>
+              <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
+                <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
+              </HintRow>
               <HintRow text={formatGuideText(guideVolume)}>
                 <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
                 <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />

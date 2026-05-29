@@ -12,10 +12,34 @@ export function usePlaybackTranscript(fileHash: string) {
   const [transcriptSource, setTranscriptSource] = useState("generated");
 
   useEffect(() => {
-    loadTranscript(fileHash).then((transcript: Transcript) => {
-      setSegments(splitLongSegments(transcript.segments));
-      setTranscriptSource(transcript.source ?? "generated");
-    });
+    let cancelled = false;
+    setSegments([]);
+
+    const loadWithRetry = async () => {
+      const MAX_ATTEMPTS = 8;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const transcript = await loadTranscript(fileHash);
+          if (cancelled) return;
+          setSegments(splitLongSegments((transcript as Transcript).segments));
+          setTranscriptSource((transcript as Transcript).source ?? "generated");
+          return;
+        } catch {
+          if (cancelled) return;
+          if (attempt >= MAX_ATTEMPTS - 1) {
+            setSegments([]);
+            setTranscriptSource("generated");
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 750));
+        }
+      }
+    };
+
+    void loadWithRetry();
+    return () => {
+      cancelled = true;
+    };
   }, [fileHash]);
 
   return { segments, transcriptSource };
