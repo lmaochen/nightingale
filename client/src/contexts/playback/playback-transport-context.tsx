@@ -33,6 +33,7 @@ export interface PlaybackTransportState {
   paused: boolean;
   duration: number;
   guideVolume: number;
+  decodeFormat: "wav" | "mp3" | null;
   error: string | null;
 }
 
@@ -172,6 +173,7 @@ export function PlaybackTransportProvider({
       paused,
       duration: audio.duration,
       guideVolume: audio.guideVolume,
+      decodeFormat: audio.decodeFormat,
       error: audio.error,
     }),
     [
@@ -183,6 +185,7 @@ export function PlaybackTransportProvider({
       audio.isFinished,
       audio.duration,
       audio.guideVolume,
+      audio.decodeFormat,
       audio.error,
       paused,
     ],

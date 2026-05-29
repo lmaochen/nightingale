@@ -18,6 +18,7 @@ interface DecodedAudioPair {
   instrumental: AudioBuffer;
   vocals: AudioBuffer;
   duration: number;
+  decodeFormat: "wav" | "mp3";
 }
 
 const decodedAudioCache = new Map<string, DecodedAudioPair>();
@@ -62,6 +63,10 @@ async function decodeAudioForFileHash(
   ctx: AudioContext,
 ): Promise<DecodedAudioPair> {
   const paths = await adapter.getAudioPaths(fileHash);
+  const decodeFormat =
+    paths.instrumental.toLowerCase().includes(".wav") && paths.vocals.toLowerCase().includes(".wav")
+      ? "wav"
+      : "mp3";
   const [instData, vocData] = await Promise.all([
     fetch(paths.instrumental).then((r) => {
       if (!r.ok) {
@@ -90,7 +95,7 @@ async function decodeAudioForFileHash(
     ctx.decodeAudioData(vocData),
   ]);
 
-  return { instrumental, vocals, duration: instrumental.duration };
+  return { instrumental, vocals, duration: instrumental.duration, decodeFormat };
 }
 
 function ensureDecodedAudio(
@@ -176,6 +181,7 @@ export interface AudioPlayer {
   isPlaying: boolean;
   isFinished: boolean;
   error: string | null;
+  decodeFormat: "wav" | "mp3" | null;
   guideVolume: number;
   play: () => void;
   pause: () => void;
@@ -216,6 +222,7 @@ export function useAudioPlayer(
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFinished, setIsFinished] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [decodeFormat, setDecodeFormat] = useState<"wav" | "mp3" | null>(null);
   const [guideVolume, setGuideVolumeState] = useState(initialGuideVolume);
 
   const getVocalsBuffer = useCallback(() => vocalsBufRef.current, []);
@@ -321,6 +328,7 @@ export function useAudioPlayer(
     startOffsetRef.current = 0;
     startContextTimeRef.current = 0;
     currentTimeRef.current = 0;
+    setDecodeFormat(null);
 
     const ctx = new AudioContext();
     ctxRef.current = ctx;
@@ -333,7 +341,7 @@ export function useAudioPlayer(
     const isCancelled = () => cancelled || cancelledRef.current;
 
     ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode)
-      .then(async ({ instrumental, vocals, duration }) => {
+      .then(async ({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
         if (isCancelled()) {
           return;
         }
@@ -346,6 +354,7 @@ export function useAudioPlayer(
         vocalsBufRef.current = vocals;
 
         setDuration(duration);
+        setDecodeFormat(loadedDecodeFormat);
 
         setIsReady(true);
       })
@@ -462,6 +471,7 @@ export function useAudioPlayer(
       isPlaying,
       isFinished,
       error,
+      decodeFormat,
       guideVolume,
       play,
       pause,
@@ -480,6 +490,7 @@ export function useAudioPlayer(
       isPlaying,
       isFinished,
       error,
+      decodeFormat,
       guideVolume,
       play,
       pause,

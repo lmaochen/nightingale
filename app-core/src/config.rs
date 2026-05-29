@@ -143,6 +143,8 @@ pub struct AppConfig {
     /// Audio decode strategy for playback: `client_mp3` (default) or
     /// `server_pcm` (serve WAV stems when available).
     pub playback_audio_decode_mode: Option<String>,
+    /// Enable host-side queue prewarm decode cache for faster transitions.
+    pub playback_warmup_cache_enabled: Option<bool>,
 }
 
 fn default_data_path_option() -> Option<PathBuf> {
@@ -182,6 +184,7 @@ impl Default for AppConfig {
             playback_performance_mode: None,
             playback_show_pitch_graph: None,
             playback_audio_decode_mode: None,
+            playback_warmup_cache_enabled: None,
         }
     }
 }
@@ -399,6 +402,10 @@ impl AppConfig {
             Some("server_pcm") => "server_pcm",
             _ => "client_mp3",
         }
+    }
+
+    pub fn playback_warmup_cache_enabled(&self) -> bool {
+        self.playback_warmup_cache_enabled.unwrap_or(true)
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {

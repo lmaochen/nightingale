@@ -108,6 +108,7 @@ export function useKaraokeHostAutoplay() {
 
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
   const performanceMode = config?.playback_performance_mode ?? false;
+  const warmupCacheEnabled = config?.playback_warmup_cache_enabled ?? true;
 
   const reportDecodeStatus = useCallback(
     (fileHash: string | null, status: "cold" | "warming" | "warm" | "failed", error?: string) => {
@@ -125,6 +126,10 @@ export function useKaraokeHostAutoplay() {
 
   useEffect(() => {
     if (!snapshot || !isHostRuntime) return;
+    if (!warmupCacheEnabled) {
+      reportDecodeStatus(null, "cold");
+      return;
+    }
     const isActivelyPlaying = Boolean(snapshot.current_song) && snapshot.paused === false;
     if (!isActivelyPlaying) {
       reportDecodeStatus(null, "cold");
@@ -189,7 +194,7 @@ export function useKaraokeHostAutoplay() {
       prewarmedHashesRef.current.delete(hash);
       reportDecodeStatus(hash, "failed", "stems-prep-failed");
     }
-  }, [isHostRuntime, performanceMode, reportDecodeStatus, snapshot]);
+  }, [isHostRuntime, performanceMode, reportDecodeStatus, snapshot, warmupCacheEnabled]);
 
   useEffect(() => {
     if (!snapshot || !isHostRuntime) return;

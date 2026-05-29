@@ -53,7 +53,7 @@ interface PlaybackLayoutProps {
 }
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
-  const { isReady, isBooting, isFinished, paused, guideVolume, stemsReady, bootStage } =
+  const { isReady, isBooting, isFinished, paused, guideVolume, stemsReady, bootStage, decodeFormat } =
     usePlaybackTransportState();
   const { handleContinue, handleExit, handlePause, setGuideVolume } = usePlaybackTransportActions();
   const { themeIndex } = usePlaybackThemeState();
@@ -70,6 +70,12 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   }, [snapshot, me]);
   const performanceMode = config?.playback_performance_mode ?? false;
   const showPitchGraph = config?.playback_show_pitch_graph ?? true;
+  const decodeLabel =
+    decodeFormat === "wav"
+      ? "WAV (server_pcm)"
+      : decodeFormat === "mp3"
+        ? "MP3 (client_mp3)"
+        : "detecting...";
   const clearedFinishedSongRef = useRef(false);
 
   usePlaybackInput(config);
@@ -177,6 +183,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
               Stems: {stemsReady ? "ready" : "loading"} | Audio: {isReady ? "ready" : "decoding"} |
               {" "}Stage: {bootStage}
             </p>
+            <p className="mt-1 text-[11px] text-white/60">Audio decode: {decodeLabel}</p>
             {showExitHostButton && (
               <div className="mt-3">
                 <button

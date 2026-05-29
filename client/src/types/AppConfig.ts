@@ -78,4 +78,8 @@ export type AppConfig = {
    * Audio decode strategy for playback: `client_mp3` (default) or `server_pcm`.
    */
   playback_audio_decode_mode: string | null;
+  /**
+   * Enable host-side queue prewarm decode cache for faster transitions.
+   */
+  playback_warmup_cache_enabled: boolean | null;
 };
