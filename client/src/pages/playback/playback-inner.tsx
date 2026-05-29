@@ -74,6 +74,15 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
+  const showExitHostButton = isHostBoothIntentActive();
+
+  const handleExitHost = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(KARAOKE_JOIN_INTENT_KEY);
+    }
+    actions.leave();
+    handleExit();
+  }, [actions, handleExit]);
 
   useEffect(() => {
     if (!isFinished) {
@@ -157,14 +166,28 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
       <Background performanceMode={performanceMode} />
 
       {(isBooting || !isReady) && (
-        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/80">
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/80">
           <div className="rounded-md border border-white/20 bg-black/70 px-4 py-3 text-center">
             <p className="text-sm uppercase tracking-[0.18em] text-white/65">Preparing Playback</p>
             <p className="mt-1 text-xs text-white/75">Loading stems, audio, and visuals...</p>
+            <p className="mt-2 text-xs text-white/85">
+              Preparing: {song.title || "Unknown title"} - {song.artist || "Unknown artist"}
+            </p>
             <p className="mt-2 text-[11px] text-white/60">
               Stems: {stemsReady ? "ready" : "loading"} | Audio: {isReady ? "ready" : "decoding"} |
               {" "}Stage: {bootStage}
             </p>
+            {showExitHostButton && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={handleExitHost}
+                  className="pointer-events-auto inline-flex min-h-[2rem] items-center justify-center rounded-sm border border-white/30 bg-black/40 px-3 py-1.5 text-xs text-white/90 transition-colors hover:bg-black/55 active:bg-black/70"
+                >
+                  Exit Host
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
