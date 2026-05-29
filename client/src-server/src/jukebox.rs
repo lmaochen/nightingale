@@ -67,7 +67,12 @@ pub struct JukeboxQueueItem {
 }
 
 impl JukeboxState {
-    pub fn new(karaoke_enabled: bool, session_pin: String, allow_guest_controls: bool) -> Self {
+    pub fn new(
+        karaoke_enabled: bool,
+        session_pin: String,
+        allow_guest_controls: bool,
+        guide_volume: f64,
+    ) -> Self {
         Self {
             karaoke_enabled,
             session_pin,
@@ -78,7 +83,7 @@ impl JukeboxState {
             current_song: None,
             paused: false,
             position_ms: 0,
-            guide_volume: 0.3,
+            guide_volume: guide_volume.clamp(0.0, 1.0),
             mic_monitoring: false,
             skip_intro_signal: 0,
             skip_intro_target: None,
@@ -101,17 +106,23 @@ pub struct JukeboxStore {
 
 impl Default for JukeboxStore {
     fn default() -> Self {
-        Self::new(true, "0000".to_string(), true)
+        Self::new(true, "0000".to_string(), true, 0.3)
     }
 }
 
 impl JukeboxStore {
-    pub fn new(karaoke_enabled: bool, session_pin: String, allow_guest_controls: bool) -> Self {
+    pub fn new(
+        karaoke_enabled: bool,
+        session_pin: String,
+        allow_guest_controls: bool,
+        guide_volume: f64,
+    ) -> Self {
         Self {
             state: RwLock::new(JukeboxState::new(
                 karaoke_enabled,
                 session_pin,
                 allow_guest_controls,
+                guide_volume,
             )),
         }
     }
