@@ -161,7 +161,7 @@ function PlaybackHudImpl({
     usePlaybackTransportActions();
   const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
   const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
-  const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec, transcriptSource } =
+  const { hasSegments, firstSegmentStart, lastSegmentEnd, introSkipLeadSec, transcriptSource } =
     usePlaybackTranscriptState();
   const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
   const { handleToggleMic, handleCycleMic, handleToggleMicMonitor } = usePlaybackMicActions();
@@ -243,13 +243,13 @@ function PlaybackHudImpl({
 
       if (skipIntroRef.current) {
         skipIntroRef.current.style.display =
-          time < firstSegmentStart - introSkipLeadSec ? "" : "none";
+          hasSegments && time < firstSegmentStart - introSkipLeadSec ? "" : "none";
       }
       if (skipOutroRef.current) {
-        skipOutroRef.current.style.display = time > lastSegmentEnd + 1 ? "" : "none";
+        skipOutroRef.current.style.display = hasSegments && time > lastSegmentEnd + 1 ? "" : "none";
       }
     });
-  }, [subscribe, getCurrentTime, duration, firstSegmentStart, introSkipLeadSec, lastSegmentEnd]);
+  }, [subscribe, getCurrentTime, duration, hasSegments, firstSegmentStart, introSkipLeadSec, lastSegmentEnd]);
 
   return (
     <>

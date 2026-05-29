@@ -16,6 +16,7 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 
 export interface PlaybackTranscriptState {
   segments: Segment[];
+  hasSegments: boolean;
   transcriptSource: string;
   firstSegmentStart: number;
   lastSegmentEnd: number;
@@ -47,6 +48,7 @@ export function PlaybackTranscriptProvider({
 
   const firstSegmentStart = segments.length > 0 ? segments[0].start : 0;
   const lastSegmentEnd = segments.length > 0 ? segments[segments.length - 1].end : 0;
+  const hasSegments = segments.length > 0;
 
   const handleSkipIntro = useCallback(() => {
     if (segments.length === 0) {
@@ -70,13 +72,14 @@ export function PlaybackTranscriptProvider({
   const stateValue = useMemo<PlaybackTranscriptState>(
     () => ({
       segments,
+      hasSegments,
       transcriptSource,
       firstSegmentStart,
       lastSegmentEnd,
       introSkipLeadSec: INTRO_SKIP_LEAD_SEC,
       skipOutroPending,
     }),
-    [segments, transcriptSource, firstSegmentStart, lastSegmentEnd, skipOutroPending],
+    [segments, hasSegments, transcriptSource, firstSegmentStart, lastSegmentEnd, skipOutroPending],
   );
 
   const actionsValue = useMemo<PlaybackTranscriptActions>(

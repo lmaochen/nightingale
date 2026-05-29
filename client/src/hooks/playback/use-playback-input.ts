@@ -20,7 +20,8 @@ export function usePlaybackInput(config: AppConfig | null) {
   const { paused, isReady } = usePlaybackTransportState();
   const { getCurrentTime, handlePause, handleContinue } = usePlaybackTransportActions();
   const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
-  const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec } = usePlaybackTranscriptState();
+  const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec, hasSegments } =
+    usePlaybackTranscriptState();
   const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
   const { handleToggleMic, handleCycleMic, handleToggleMicMonitor } = usePlaybackMicActions();
   const { toggleGuide, increaseGuide, decreaseGuide } = useGuideControls(config);
@@ -44,7 +45,7 @@ export function usePlaybackInput(config: AppConfig | null) {
         if (pausedRef.current) return;
 
         if (action.confirm) {
-          if (!isReady) return;
+          if (!isReady || !hasSegments) return;
           const t = getCurrentTime();
           if (t < firstSegmentStart - introSkipLeadSec) {
             handleSkipIntro();
@@ -58,6 +59,7 @@ export function usePlaybackInput(config: AppConfig | null) {
         handleContinue,
         isReady,
         getCurrentTime,
+        hasSegments,
         firstSegmentStart,
         lastSegmentEnd,
         introSkipLeadSec,

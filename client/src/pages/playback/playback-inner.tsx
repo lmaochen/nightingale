@@ -150,6 +150,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   );
 
   useEffect(() => {
+    if (segments.length === 0) return;
     if (!isReady || !snapshot) return;
     const currentIdentity = `file_hash:${song.file_hash}`;
     if (snapshot.skip_intro_target !== currentIdentity) return;
@@ -157,9 +158,10 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
       skipIntroSignalRef.current = snapshot.skip_intro_signal;
       handleSkipIntro();
     }
-  }, [handleSkipIntro, isReady, snapshot, song.file_hash]);
+  }, [handleSkipIntro, isReady, segments.length, snapshot, song.file_hash]);
 
   useEffect(() => {
+    if (segments.length === 0) return;
     if (!isReady || !snapshot) return;
     const currentIdentity = `file_hash:${song.file_hash}`;
     if (snapshot.skip_outro_target !== currentIdentity) return;
@@ -167,7 +169,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
       skipOutroSignalRef.current = snapshot.skip_outro_signal;
       handleSkipOutro();
     }
-  }, [handleSkipOutro, isReady, snapshot, song.file_hash]);
+  }, [handleSkipOutro, isReady, segments.length, snapshot, song.file_hash]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>
