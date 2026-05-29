@@ -10,6 +10,11 @@ import { convertFileSrc } from "@/bridge/media";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
+import {
+  getPlaybackAudioCacheError,
+  getPlaybackAudioCacheStatus,
+  type PlaybackAudioCacheStatus,
+} from "@/hooks/use-audio-player";
 import type { Song } from "@/types/Song";
 import { loadAnalysisQueue } from "@/bridge/songs";
 import { ANALYSIS_QUEUE, DOWNTIFY_QUEUE } from "@/queries/keys";
@@ -99,6 +104,7 @@ export function KaraokeJoinPage() {
   const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
   const [libraryFilter, setLibraryFilter] = useState<LibraryFilterMode>(DEFAULT_LIBRARY_FILTER);
   const [pendingImports, setPendingImports] = useState<PendingImport[]>([]);
+  const [cacheStatusTick, setCacheStatusTick] = useState(0);
   const downtifyQueueQuery = useQuery({
     queryKey: DOWNTIFY_QUEUE,
     queryFn: downtifyLoadQueue,
@@ -184,6 +190,29 @@ export function KaraokeJoinPage() {
     }
     return hashes;
   }, [snapshot?.queue]);
+  const nextQueuedHash = useMemo(() => {
+    const first = snapshot?.queue?.[0];
+    const hash = first?.song?.["file_hash"];
+    return typeof hash === "string" && hash.length > 0 ? hash : null;
+  }, [snapshot?.queue]);
+  const nextQueuedDecodeStatus = useMemo<PlaybackAudioCacheStatus>(
+    () => (nextQueuedHash ? getPlaybackAudioCacheStatus(nextQueuedHash) : "cold"),
+    [nextQueuedHash, cacheStatusTick],
+  );
+  const nextQueuedDecodeError = useMemo(
+    () => (nextQueuedHash ? getPlaybackAudioCacheError(nextQueuedHash) : null),
+    [nextQueuedHash, cacheStatusTick],
+  );
+
+  useEffect(() => {
+    if (!nextQueuedHash) return;
+    const timer = window.setInterval(() => {
+      setCacheStatusTick((v) => v + 1);
+    }, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [nextQueuedHash]);
 
   const joinSession = () => {
     actions.join(pin, name.trim() || DEFAULT_JOIN_NAME, false);
@@ -358,6 +387,17 @@ export function KaraokeJoinPage() {
           {snapshot && (
             <p className="mt-2 text-sm text-muted-foreground">
               Current Song: {snapshot.current_song ?? "--"} | Queue: {snapshot.queue.length}
+            </p>
+          )}
+          {nextQueuedHash && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Next song decode cache:{" "}
+              {nextQueuedDecodeStatus === "warm"
+                ? "Warm"
+                : nextQueuedDecodeStatus === "warming"
+                  ? "Warming"
+                  : "Cold"}
+              {nextQueuedDecodeError ? ` (${nextQueuedDecodeError})` : ""}
             </p>
           )}
         </div>

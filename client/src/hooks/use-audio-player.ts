@@ -22,6 +22,7 @@ interface DecodedAudioPair {
 
 const decodedAudioCache = new Map<string, DecodedAudioPair>();
 const decodeInFlight = new Map<string, Promise<DecodedAudioPair>>();
+const decodeErrorByHash = new Map<string, string>();
 const DECODE_CACHE_LIMIT = 3;
 
 function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
@@ -29,6 +30,7 @@ function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
     decodedAudioCache.delete(fileHash);
   }
   decodedAudioCache.set(fileHash, decoded);
+  decodeErrorByHash.delete(fileHash);
 
   while (decodedAudioCache.size > DECODE_CACHE_LIMIT) {
     const oldest = decodedAudioCache.keys().next().value as string | undefined;
@@ -120,12 +122,31 @@ export function prewarmPlaybackAudio(
       void warmCtx.close().catch(() => {});
     }
   })()
+    .catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      decodeErrorByHash.set(fileHash, message);
+      throw error;
+    })
     .finally(() => {
       decodeInFlight.delete(fileHash);
     });
 
   decodeInFlight.set(fileHash, task);
   return task.then(() => undefined);
+}
+
+export type PlaybackAudioCacheStatus = "warm" | "warming" | "cold";
+
+export function getPlaybackAudioCacheStatus(fileHash: string): PlaybackAudioCacheStatus {
+  if (!fileHash) return "cold";
+  if (decodedAudioCache.has(fileHash)) return "warm";
+  if (decodeInFlight.has(fileHash)) return "warming";
+  return "cold";
+}
+
+export function getPlaybackAudioCacheError(fileHash: string): string | null {
+  if (!fileHash) return null;
+  return decodeErrorByHash.get(fileHash) ?? null;
 }
 
 export interface AudioPlayer {
