@@ -75,6 +75,35 @@ function HintRow({ text, children }: { text: string; children?: React.ReactNode 
 
 const FOOTER_NOTE_CLASS = `pointer-events-none absolute bottom-2 z-20 text-[0.6rem] text-white/30`;
 
+function VenueTicker({
+  nowPlaying,
+  upcomingQueue,
+}: {
+  nowPlaying: { title: string; artist: string };
+  upcomingQueue: JukeboxQueueItem[];
+}) {
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-8 z-20 px-4">
+      <div className="mx-auto max-w-5xl rounded-md border border-white/20 bg-black/55 px-3 py-2 backdrop-blur-sm">
+        <p className="text-[0.65rem] uppercase tracking-[0.18em] text-white/60">Now Playing</p>
+        <p className="truncate text-sm text-white">
+          {nowPlaying.title} - {nowPlaying.artist}
+        </p>
+        {upcomingQueue.length > 0 && (
+          <div className="mt-1 border-t border-white/15 pt-1">
+            <p className="text-[0.65rem] uppercase tracking-[0.16em] text-white/55">Up Next</p>
+            <p className="truncate text-xs text-white/75">
+              {upcomingQueue
+                .map((item, index) => `${index + 1}. ${item.title} (${item.requested_by_display_name})`)
+                .join("   •   ")}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Disclaimer({ source }: { source: string }) {
   if (source === "usdx") {
     return null;
@@ -209,6 +238,8 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
           </HintRow>
         </div>
       </div>
+
+      <VenueTicker nowPlaying={{ title, artist }} upcomingQueue={upcomingQueue} />
 
       {showPixabayCredit && <p className={`${FOOTER_NOTE_CLASS} right-4`}>Videos by Pixabay</p>}
 

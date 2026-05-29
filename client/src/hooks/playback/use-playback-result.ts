@@ -79,10 +79,19 @@ export function usePlaybackResult(song: Song): PlaybackResult {
     finishHandledRef.current = true;
     clearSkipOutroPending();
 
+    const returnToHost = shouldReturnToHostRoute();
+    const returnRoute = returnToHost ? "/host" : "/";
+
+    // Venue flow: host sessions should move straight back to host control,
+    // where the next queued song can auto-launch without result interruptions.
+    if (returnToHost) {
+      navigate(returnRoute, { replace: true });
+      return;
+    }
+
     const finalScore = scoreRef.current;
     const active = profileData?.active ?? null;
     const shouldShowResult = finalScore > 0;
-    const returnRoute = shouldReturnToHostRoute() ? "/host" : "/";
 
     if (!shouldShowResult) {
       navigate(returnRoute, { replace: true });
