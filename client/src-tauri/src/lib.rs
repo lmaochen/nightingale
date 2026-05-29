@@ -21,6 +21,7 @@ use lyrics::{load_lyrics, save_lyrics, search_lrclib_lyrics};
 use microphones::{list_microphones, set_monitor_gain, start_mic_capture, stop_mic_capture};
 use playback::{
     ensure_mp3_stems, ensure_playable_source_video, fetch_pixabay_videos, get_audio_paths,
+    get_audio_paths_client_mp3,
     get_playback_warmup_status, load_transcript, warm_server_pcm_cache, warm_stems_cache,
 };
 use profile::{add_score, create_profile, delete_profile, load_profiles, switch_profile};
@@ -135,6 +136,7 @@ pub fn run() {
             // Playback
             load_transcript,
             get_audio_paths,
+            get_audio_paths_client_mp3,
             ensure_mp3_stems,
             warm_stems_cache,
             warm_server_pcm_cache,

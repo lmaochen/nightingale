@@ -232,7 +232,7 @@ function LyricsDisplayImpl({
       const loop = () => {
         if (cancelled) return;
         const now = performance.now();
-        if (!performanceMode || now - lastFrameTime >= 50) {
+        if (!performanceMode || now - lastFrameTime >= 90) {
           lastFrameTime = now;
           apply(getCurrentTime());
         }

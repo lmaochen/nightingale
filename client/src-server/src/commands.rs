@@ -302,6 +302,13 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
                     .map_err(serde_err)?,
             )
         }
+        "get_audio_paths_client_mp3" => {
+            let args: FileHashArgs = deserialize(payload)?;
+            Ok(
+                serde_json::to_value(app_core::get_audio_paths_client_mp3(&args.file_hash))
+                    .map_err(serde_err)?,
+            )
+        }
         "ensure_mp3_stems" => ensure_mp3_stems_cmd(events, payload),
         "warm_stems_cache" => Ok(Value::Bool(app_core::warm_stems_cache_background())),
         "warm_server_pcm_cache" => Ok(Value::Bool(app_core::warm_server_pcm_cache_background())),

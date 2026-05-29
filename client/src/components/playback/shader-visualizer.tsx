@@ -19,7 +19,7 @@ const ShaderQuad = ({
   performanceMode,
 }: ShaderVisualizerProps) => {
   const fragmentShader = customFragment ?? shaders[shaderIndex].fragmentShader;
-  const uniforms = useReactiveShaderUniforms(reactiveRef, isPlaying, performanceMode ? 24 : 60);
+  const uniforms = useReactiveShaderUniforms(reactiveRef, isPlaying, performanceMode ? 12 : 60);
 
   return (
     <mesh>
@@ -38,7 +38,7 @@ export const ShaderVisualizer = (props: ShaderVisualizerProps) => (
   <div className="fixed inset-0">
     <Canvas
       flat
-      dpr={props.performanceMode ? 0.75 : 1}
+      dpr={props.performanceMode ? 0.6 : 1}
       gl={{
         antialias: !props.performanceMode,
         powerPreference: props.performanceMode ? "low-power" : "high-performance",

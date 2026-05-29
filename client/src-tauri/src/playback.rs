@@ -14,6 +14,11 @@ pub fn get_audio_paths(file_hash: String) -> AudioPaths {
 }
 
 #[tauri::command]
+pub fn get_audio_paths_client_mp3(file_hash: String) -> AudioPaths {
+    app_core::get_audio_paths_client_mp3(&file_hash)
+}
+
+#[tauri::command]
 pub fn ensure_mp3_stems(app: AppHandle, file_hash: String) {
     std::thread::spawn(move || {
         let _ = app.emit("stems-ready", ensure_mp3_stems_ready_payload(file_hash));

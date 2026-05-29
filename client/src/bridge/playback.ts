@@ -6,6 +6,7 @@ import {
   fetchPixabayVideos as tauriFetchPixabayVideos,
   getPlaybackWarmupStatus as tauriGetPlaybackWarmupStatus,
   getAudioPaths as tauriRawGetAudioPaths,
+  getAudioPathsClientMp3 as tauriRawGetAudioPathsClientMp3,
   getMediaEndpoint as tauriGetMediaEndpoint,
   loadTranscript as tauriLoadTranscript,
   onPixabayVideoDownloaded as tauriOnPixabayVideoDownloaded,
@@ -103,6 +104,18 @@ export const webPlaybackAdapter: PlaybackAdapter = {
 };
 
 export const playbackAdapter: PlaybackAdapter = isTauri ? tauriPlaybackAdapter : webPlaybackAdapter;
+
+export const getAudioPathsClientMp3 = async (fileHash: string): Promise<AudioPaths> => {
+  const paths = await tauriRawGetAudioPathsClientMp3(fileHash);
+  if (isTauri) {
+    await ensureEndpoint();
+  }
+  const toMediaUrl = isTauri ? tauriToMediaUrl : webToMediaUrl;
+  return {
+    instrumental: toMediaUrl(paths.instrumental),
+    vocals: toMediaUrl(paths.vocals),
+  };
+};
 
 // ─── Re-exports for command/event call sites ─────────────────────────────
 

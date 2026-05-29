@@ -195,6 +195,10 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
     apply_decode_mode(resolve_audio_paths(file_hash))
 }
 
+pub fn get_audio_paths_client_mp3(file_hash: &str) -> AudioPaths {
+    resolve_audio_paths(file_hash)
+}
+
 fn convert_audio_to_wav(
     source: &Path,
     target: &Path,

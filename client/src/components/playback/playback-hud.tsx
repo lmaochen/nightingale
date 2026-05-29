@@ -139,6 +139,7 @@ interface PlaybackHudProps {
   title: string;
   artist: string;
   config: AppConfig | null;
+  liteMode?: boolean;
   karaokeQueue?: JukeboxQueueItem[];
   canPatchSessionSettings?: boolean;
   onGuideVolumeChange?: (nextVolume: number) => void;
@@ -149,6 +150,7 @@ function PlaybackHudImpl({
   title,
   artist,
   config,
+  liteMode = false,
   karaokeQueue = [],
   canPatchSessionSettings = false,
   onGuideVolumeChange,
@@ -220,7 +222,7 @@ function PlaybackHudImpl({
   const skipOutroRef = useRef<HTMLButtonElement>(null);
 
   const showPixabayCredit = isPixabayTheme(themeIndex);
-  const upcomingQueue = karaokeQueue.slice(0, 4);
+  const upcomingQueue = liteMode ? [] : karaokeQueue.slice(0, 4);
   const showExitHostButton = isHostBoothIntentActive();
 
   // Updates the timer text and skip-button visibility via direct DOM mutation
@@ -286,34 +288,38 @@ function PlaybackHudImpl({
               Exit Host
             </button>
           )}
-          <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
-            Score: {pitchScore ?? "--"}
-          </div>
-          <HintRow text={formatGuideText(guideVolume)}>
-            <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
-            <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
-            <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
-          </HintRow>
-          <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
-            <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
-            <KeyChip label="N" ariaLabel="Next microphone" onClick={handleCycleMic} />
-          </HintRow>
-          <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
-            <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
-          </HintRow>
-          <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
-            <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
-            {isPixabayTheme(themeIndex) && (
-              <KeyChip label="F" ariaLabel="Cycle video flavor" onClick={cycleFlavor} />
-            )}
-          </HintRow>
-          <HintRow text="Back">
-            <KeyChip label="ESC" ariaLabel="Back" onClick={handleBack} />
-          </HintRow>
+          {!liteMode && (
+            <>
+              <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
+                Score: {pitchScore ?? "--"}
+              </div>
+              <HintRow text={formatGuideText(guideVolume)}>
+                <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
+                <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
+                <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
+              </HintRow>
+              <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
+                <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
+                <KeyChip label="N" ariaLabel="Next microphone" onClick={handleCycleMic} />
+              </HintRow>
+              <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
+                <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
+              </HintRow>
+              <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
+                <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
+                {isPixabayTheme(themeIndex) && (
+                  <KeyChip label="F" ariaLabel="Cycle video flavor" onClick={cycleFlavor} />
+                )}
+              </HintRow>
+              <HintRow text="Back">
+                <KeyChip label="ESC" ariaLabel="Back" onClick={handleBack} />
+              </HintRow>
+            </>
+          )}
         </div>
       </div>
 
-      <VenueTicker nowPlaying={{ title, artist }} upcomingQueue={upcomingQueue} />
+      {!liteMode && <VenueTicker nowPlaying={{ title, artist }} upcomingQueue={upcomingQueue} />}
 
       {showPixabayCredit && <p className={`${FOOTER_NOTE_CLASS} right-4`}>Videos by Pixabay</p>}
 

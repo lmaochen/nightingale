@@ -9,7 +9,7 @@
  */
 
 import type { PlaybackAdapter } from "@/bridge/playback";
-import { playbackAdapter } from "@/bridge/playback";
+import { getAudioPathsClientMp3, playbackAdapter } from "@/bridge/playback";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type TimeSubscriber = (time: number) => void;
@@ -86,40 +86,66 @@ async function decodeAudioForFileHash(
   fileHash: string,
   adapter: PlaybackAdapter,
   ctx: AudioContext,
+  options?: { decodeTimeoutMs?: number; allowMp3Fallback?: boolean },
 ): Promise<DecodedAudioPair> {
-  const paths = await adapter.getAudioPaths(fileHash);
-  const decodeFormat =
-    paths.instrumental.toLowerCase().includes(".wav") && paths.vocals.toLowerCase().includes(".wav")
-      ? "wav"
-      : "mp3";
-  const [instData, vocData] = await Promise.all([
-    fetch(paths.instrumental).then((r) => {
-      if (!r.ok) {
-        throw new Error(`Failed to fetch instrumental: ${r.status}`);
-      }
-      return r.arrayBuffer();
-    }),
-    fetch(paths.vocals).then((r) => {
-      if (!r.ok) {
-        throw new Error(`Failed to fetch vocals: ${r.status}`);
-      }
-      return r.arrayBuffer();
-    }),
-  ]);
+  const decodeFromPaths = async (paths: { instrumental: string; vocals: string }) => {
+    const decodeFormat =
+      paths.instrumental.toLowerCase().includes(".wav") &&
+      paths.vocals.toLowerCase().includes(".wav")
+        ? "wav"
+        : "mp3";
+    const [instData, vocData] = await Promise.all([
+      fetch(paths.instrumental).then((r) => {
+        if (!r.ok) {
+          throw new Error(`Failed to fetch instrumental: ${r.status}`);
+        }
+        return r.arrayBuffer();
+      }),
+      fetch(paths.vocals).then((r) => {
+        if (!r.ok) {
+          throw new Error(`Failed to fetch vocals: ${r.status}`);
+        }
+        return r.arrayBuffer();
+      }),
+    ]);
 
-  if (ctx.state === "suspended") {
-    // Don't block decode on resume; some browsers may delay until user gesture.
-    void ctx.resume().catch(() => {
-      // decodeAudioData can still run while suspended in modern browsers.
-    });
+    if (ctx.state === "suspended") {
+      // Don't block decode on resume; some browsers may delay until user gesture.
+      void ctx.resume().catch(() => {
+        // decodeAudioData can still run while suspended in modern browsers.
+      });
+    }
+
+    const [instrumental, vocals] = await Promise.all([
+      ctx.decodeAudioData(instData),
+      ctx.decodeAudioData(vocData),
+    ]);
+
+    return { instrumental, vocals, duration: instrumental.duration, decodeFormat } as DecodedAudioPair;
+  };
+
+  const paths = await adapter.getAudioPaths(fileHash);
+  const isWavSource =
+    paths.instrumental.toLowerCase().includes(".wav") && paths.vocals.toLowerCase().includes(".wav");
+  if (!options?.allowMp3Fallback || !isWavSource) {
+    return decodeFromPaths(paths);
   }
 
-  const [instrumental, vocals] = await Promise.all([
-    ctx.decodeAudioData(instData),
-    ctx.decodeAudioData(vocData),
-  ]);
+  const timeoutMs = Math.max(1000, options.decodeTimeoutMs ?? 5500);
+  const timeout = new Promise<DecodedAudioPair>((_, reject) => {
+    window.setTimeout(() => reject(new Error("decode-timeout")), timeoutMs);
+  });
 
-  return { instrumental, vocals, duration: instrumental.duration, decodeFormat };
+  try {
+    return await Promise.race([decodeFromPaths(paths), timeout]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("decode-timeout")) {
+      throw error;
+    }
+    const mp3Paths = await getAudioPathsClientMp3(fileHash);
+    return decodeFromPaths(mp3Paths);
+  }
 }
 
 function ensureDecodedAudio(
@@ -127,6 +153,7 @@ function ensureDecodedAudio(
   adapter: PlaybackAdapter,
   ctx: AudioContext,
   sequential = false,
+  options?: { decodeTimeoutMs?: number; allowMp3Fallback?: boolean },
 ): Promise<DecodedAudioPair> {
   const cached = decodedAudioCache.get(fileHash);
   if (cached) return Promise.resolve(cached);
@@ -134,7 +161,10 @@ function ensureDecodedAudio(
   const inflight = decodeInFlight.get(fileHash);
   if (inflight) return inflight;
 
-  const task = runDecodeTask(() => decodeAudioForFileHash(fileHash, adapter, ctx), sequential)
+  const task = runDecodeTask(
+    () => decodeAudioForFileHash(fileHash, adapter, ctx, options),
+    sequential,
+  )
     .then((decoded) => {
       cacheDecodedAudio(fileHash, decoded);
       return decoded;
@@ -371,7 +401,10 @@ export function useAudioPlayer(
 
     const isCancelled = () => cancelled || cancelledRef.current;
 
-    ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode)
+    ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode, {
+      decodeTimeoutMs: sequentialDecode ? 5000 : undefined,
+      allowMp3Fallback: sequentialDecode,
+    })
       .then(async ({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
         if (isCancelled()) {
           return;

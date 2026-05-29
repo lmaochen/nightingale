@@ -84,6 +84,10 @@ function BackgroundImpl({ performanceMode = false }: { performanceMode?: boolean
   const { isReady, isPlaying } = usePlaybackTransportState();
   const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
 
+  if (performanceMode) {
+    return <div className="fixed inset-0 bg-gradient-to-b from-slate-950 via-black to-slate-900" />;
+  }
+
   if (!isReady) {
     return (
       <div className="fixed inset-0">

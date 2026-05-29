@@ -69,7 +69,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     return snapshot.host === me.client_id || snapshot.allow_guest_controls;
   }, [snapshot, me]);
   const performanceMode = config?.playback_performance_mode ?? false;
-  const showPitchGraph = config?.playback_show_pitch_graph ?? true;
+  const showPitchGraph = (config?.playback_show_pitch_graph ?? true) && !performanceMode;
   const configuredDecodeLabel =
     config?.playback_audio_decode_mode === "server_pcm" ? "WAV (server_pcm)" : "MP3 (client_mp3)";
   const decodeLabel =
@@ -207,6 +207,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
             title={song.title}
             artist={song.artist}
             config={config}
+            liteMode={performanceMode}
             karaokeQueue={snapshot?.queue ?? []}
             canPatchSessionSettings={canPatchSessionSettings}
             onGuideVolumeChange={handleGuideVolumeChange}
