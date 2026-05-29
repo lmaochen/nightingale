@@ -53,7 +53,8 @@ interface PlaybackLayoutProps {
 }
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
-  const { isReady, isBooting, isFinished, paused, guideVolume } = usePlaybackTransportState();
+  const { isReady, isBooting, isFinished, paused, guideVolume, stemsReady, bootStage } =
+    usePlaybackTransportState();
   const { handleContinue, handleExit, handlePause, setGuideVolume } = usePlaybackTransportActions();
   const { themeIndex } = usePlaybackThemeState();
   const { setThemeIndex } = usePlaybackThemeActions();
@@ -160,6 +161,10 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
           <div className="rounded-md border border-white/20 bg-black/70 px-4 py-3 text-center">
             <p className="text-sm uppercase tracking-[0.18em] text-white/65">Preparing Playback</p>
             <p className="mt-1 text-xs text-white/75">Loading stems, audio, and visuals...</p>
+            <p className="mt-2 text-[11px] text-white/60">
+              Stems: {stemsReady ? "ready" : "loading"} | Audio: {isReady ? "ready" : "decoding"} |
+              {" "}Stage: {bootStage}
+            </p>
           </div>
         </div>
       )}
