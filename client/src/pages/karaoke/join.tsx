@@ -13,6 +13,7 @@ import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { loadAnalysisQueue } from "@/bridge/songs";
 import { ANALYSIS_QUEUE, DOWNTIFY_QUEUE } from "@/queries/keys";
+import { useLibraryMenuItems } from "@/queries/use-library-menu-items";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
@@ -78,6 +79,8 @@ export function KaraokeJoinPage() {
   const [name, setName] = useState(DEFAULT_JOIN_NAME);
   const [pin, setPin] = useState("");
   const [query, setQuery] = useState("");
+  const [artistQuery, setArtistQuery] = useState("");
+  const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<Song[]>([]);
   const [importQuery, setImportQuery] = useState("");
@@ -110,6 +113,7 @@ export function KaraokeJoinPage() {
     [analysisQuery.data],
   );
   const fullAnalysisEntries = analysisQuery.data?.entries ?? {};
+  const { data: libraryMenu } = useLibraryMenuItems();
   const catalogQuery = useQuery({
     queryKey: ["join-library-catalog"],
     queryFn: async () =>
@@ -128,6 +132,18 @@ export function KaraokeJoinPage() {
     const q = query.trim();
     return q.length > 0 ? q : null;
   }, [query]);
+  const artistNeedle = useMemo(() => normalize(artistQuery), [artistQuery]);
+  const allArtists = useMemo(
+    () => (libraryMenu?.artists ?? []).map((item) => item.label).filter((label) => label.trim().length > 0),
+    [libraryMenu?.artists],
+  );
+  const visibleArtists = useMemo(
+    () =>
+      allArtists
+        .filter((artist) => (artistNeedle.length > 0 ? normalize(artist).includes(artistNeedle) : true))
+        .slice(0, 120),
+    [allArtists, artistNeedle],
+  );
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
@@ -151,7 +167,7 @@ export function KaraokeJoinPage() {
     try {
       const result = await loadSongs({
         search: libraryQuery,
-        filters: { artist: null, album: null, query: null },
+        filters: { artist: selectedArtist, album: null, query: null },
         skip: 0,
         take: LIBRARY_TAKE,
       });
@@ -159,7 +175,7 @@ export function KaraokeJoinPage() {
     } finally {
       setSearching(false);
     }
-  }, [libraryQuery]);
+  }, [libraryQuery, selectedArtist]);
 
   const handleSearch = async (e: FormEvent) => {
     e.preventDefault();
@@ -324,29 +340,82 @@ export function KaraokeJoinPage() {
           <p className="mt-1 text-xs text-muted-foreground">
             Browse songs, see readiness at a glance, and add straight to karaoke queue.
           </p>
-          <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <form onSubmit={handleSearch} className="mt-3 flex flex-col gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search song title..."
+                disabled={!me}
+              />
+              <Button
+                type="submit"
+                className="w-full sm:w-auto"
+                disabled={!me || searching || !query.trim()}
+              >
+                {searching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={searching}
+                onClick={() => {
+                  setQuery("");
+                  void loadLatestSongs();
+                }}
+              >
+                Browse Latest
+              </Button>
+            </div>
             <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search tracks..."
+              value={artistQuery}
+              onChange={(e) => setArtistQuery(e.target.value)}
+              placeholder="Search artists..."
               disabled={!me}
+              className="sm:max-w-sm"
             />
-            <Button type="submit" className="w-full sm:w-auto" disabled={!me || searching || !query.trim()}>
-              {searching ? <Loader2Icon className="size-4 animate-spin" /> : "Search"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={searching}
-              onClick={() => {
-                setQuery("");
-                void loadLatestSongs();
-              }}
-            >
-              Browse Latest
-            </Button>
+            {selectedArtist && (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setSelectedArtist(null);
+                  setResults([]);
+                }}
+              >
+                Clear Artist: {selectedArtist}
+              </Button>
+            )}
           </form>
+          {visibleArtists.length > 0 && (
+            <div className="mt-3">
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Browse artists</p>
+              <div className="max-h-36 overflow-y-auto pr-1">
+                <div className="flex flex-wrap gap-2">
+                  {visibleArtists.map((artist) => (
+                    <Button
+                      key={artist}
+                      type="button"
+                      size="sm"
+                      variant={selectedArtist === artist ? "default" : "outline"}
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        setSelectedArtist(artist);
+                        setResults([]);
+                      }}
+                    >
+                      {artist}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {visibleArtists.length === 0 && artistNeedle.length > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">No artists matched that search.</p>
+          )}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Button
               variant={libraryFilter === "all" ? "default" : "outline"}
@@ -421,7 +490,7 @@ export function KaraokeJoinPage() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="w-full sm:w-auto"
+                    className="shrink-0 self-start sm:self-auto"
                     disabled={!me || inQueue}
                     onClick={() => actions.addToQueue(song as unknown as Record<string, unknown>)}
                   >

@@ -39,7 +39,9 @@ export interface JukeboxSessionSnapshot {
   guide_volume: number;
   mic_monitoring: boolean;
   skip_intro_signal: number;
+  skip_intro_target?: string | null;
   skip_outro_signal: number;
+  skip_outro_target?: string | null;
   pitch_hz: number | null;
   rms: number | null;
   mic_owner: number | null;

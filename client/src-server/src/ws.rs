@@ -455,6 +455,8 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                         s.current_song = s.queue.last().map(|item| {
                             queue_identity(&item.song).unwrap_or_else(|| item.title.clone())
                         });
+                        s.skip_intro_target = None;
+                        s.skip_outro_target = None;
                         s.paused = false;
                         s.position_ms = 0;
                     }
@@ -581,20 +583,30 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                             if !s.queue.is_empty() {
                                 let item = s.queue.remove(0);
                                 s.current_song = queue_identity(&item.song).or(Some(item.title));
+                                s.skip_intro_target = None;
+                                s.skip_outro_target = None;
                                 s.position_ms = 0;
                                 s.paused = false;
                             } else {
                                 s.current_song = None;
+                                s.skip_intro_target = None;
+                                s.skip_outro_target = None;
                             }
                         }
                         "skip-intro" => {
                             if can_control(s, client_id) {
-                                s.skip_intro_signal = s.skip_intro_signal.saturating_add(1);
+                                if let Some(current_song) = s.current_song.clone() {
+                                    s.skip_intro_target = Some(current_song);
+                                    s.skip_intro_signal = s.skip_intro_signal.saturating_add(1);
+                                }
                             }
                         }
                         "skip-outro" => {
                             if can_control(s, client_id) {
-                                s.skip_outro_signal = s.skip_outro_signal.saturating_add(1);
+                                if let Some(current_song) = s.current_song.clone() {
+                                    s.skip_outro_target = Some(current_song);
+                                    s.skip_outro_signal = s.skip_outro_signal.saturating_add(1);
+                                }
                             }
                         }
                         "rescan-library" => {
