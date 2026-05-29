@@ -177,6 +177,7 @@ function writeUniforms(
 export function useReactiveShaderUniforms(
   reactiveRef: MicReactiveRef | undefined,
   isPlaying: boolean,
+  targetFps = 60,
 ): ShaderUniforms {
   const wave = useWaveTexture(WAVE_BINS);
   const uniforms = useMemo(() => createInitialUniforms(wave.texture), [wave.texture]);
@@ -186,11 +187,21 @@ export function useReactiveShaderUniforms(
     timeSlow: 0,
     reactiveBlend: 0,
   });
+  const frameBudgetRef = useRef(0);
 
   useFrame((_, delta) => {
+    const cappedFps = Math.max(1, targetFps);
+    const frameBudget = 1 / cappedFps;
+    frameBudgetRef.current += delta;
+    if (frameBudgetRef.current < frameBudget) {
+      return;
+    }
+    const stepDelta = frameBudgetRef.current;
+    frameBudgetRef.current = 0;
+
     const reactive = reactiveRef?.current ?? null;
 
-    advanceClocks(clocks.current, reactive, delta, isPlaying);
+    advanceClocks(clocks.current, reactive, stepDelta, isPlaying);
     writeUniforms(uniforms, reactive, clocks.current);
     wave.sync(reactive?.wave);
   });

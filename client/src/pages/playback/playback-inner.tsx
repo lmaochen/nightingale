@@ -53,6 +53,8 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     if (!snapshot || !me) return false;
     return snapshot.host === me.client_id || snapshot.allow_guest_controls;
   }, [snapshot, me]);
+  const performanceMode = config?.playback_performance_mode ?? false;
+  const showPitchGraph = config?.playback_show_pitch_graph ?? true;
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
@@ -121,7 +123,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>
-      <Background />
+      <Background performanceMode={performanceMode} />
 
       {isReady && (
         <>
@@ -134,11 +136,12 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
             onGuideVolumeChange={handleGuideVolumeChange}
             onThemeChange={handleThemeChange}
           />
-          <PitchGraph series={series} />
+          {showPitchGraph && <PitchGraph series={series} />}
           <LyricsDisplay
             segments={segments}
             position={config?.lyrics_position ?? "bottom"}
             fontScale={config?.lyrics_font_scale ?? 1}
+            performanceMode={performanceMode}
           />
         </>
       )}

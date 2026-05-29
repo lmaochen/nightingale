@@ -60,25 +60,39 @@ export function isPixabayTheme(index: number): boolean {
   return index === PIXABAY_INDEX;
 }
 
-function ShaderBranch({ themeIndex, isPlaying }: { themeIndex: number; isPlaying: boolean }) {
+function ShaderBranch({
+  themeIndex,
+  isPlaying,
+  performanceMode,
+}: {
+  themeIndex: number;
+  isPlaying: boolean;
+  performanceMode: boolean;
+}) {
   const { reactiveRef } = usePlaybackMicActions();
   return (
     <ShaderVisualizer
       shaderIndex={themeIndex % SHADER_COUNT}
       isPlaying={isPlaying}
-      reactiveRef={reactiveRef}
+      reactiveRef={performanceMode ? undefined : reactiveRef}
+      performanceMode={performanceMode}
     />
   );
 }
 
-function BackgroundImpl() {
+function BackgroundImpl({ performanceMode = false }: { performanceMode?: boolean }) {
   const { isReady, isPlaying } = usePlaybackTransportState();
   const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
 
   if (!isReady) {
     return (
       <div className="fixed inset-0">
-        <ShaderVisualizer shaderIndex={0} isPlaying={true} customFragment={loadingFragment} />
+        <ShaderVisualizer
+          shaderIndex={0}
+          isPlaying={true}
+          customFragment={loadingFragment}
+          performanceMode={performanceMode}
+        />
       </div>
     );
   }
@@ -90,7 +104,9 @@ function BackgroundImpl() {
   return (
     <div className="fixed inset-0">
       {sourceVideoPath && <SourceVideo isActive={showSourceVideo} />}
-      {mode === "shader" && <ShaderBranch themeIndex={themeIndex} isPlaying={playing} />}
+      {mode === "shader" && (
+        <ShaderBranch themeIndex={themeIndex} isPlaying={playing} performanceMode={performanceMode} />
+      )}
       {mode === "pixabay" && <PixabayVideo flavor={videoFlavor} isPlaying={playing} />}
     </div>
   );

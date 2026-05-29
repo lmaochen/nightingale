@@ -172,9 +172,15 @@ interface LyricsDisplayProps {
   segments: Segment[];
   position: LyricsPosition;
   fontScale: number;
+  performanceMode?: boolean;
 }
 
-function LyricsDisplayImpl({ segments, position, fontScale }: LyricsDisplayProps) {
+function LyricsDisplayImpl({
+  segments,
+  position,
+  fontScale,
+  performanceMode = false,
+}: LyricsDisplayProps) {
   const { isPlaying, paused } = usePlaybackTransportState();
   const { subscribe, getCurrentTime } = usePlaybackTransportActions();
   const animate = isPlaying && !paused;
@@ -194,6 +200,7 @@ function LyricsDisplayImpl({ segments, position, fontScale }: LyricsDisplayProps
 
     let raf = 0;
     let cancelled = false;
+    let lastFrameTime = 0;
 
     const apply = (time: number) => {
       const idx = findCurrentSegment(segments, time, hintRef.current);
@@ -224,7 +231,11 @@ function LyricsDisplayImpl({ segments, position, fontScale }: LyricsDisplayProps
     if (animate) {
       const loop = () => {
         if (cancelled) return;
-        apply(getCurrentTime());
+        const now = performance.now();
+        if (!performanceMode || now - lastFrameTime >= 50) {
+          lastFrameTime = now;
+          apply(getCurrentTime());
+        }
         raf = requestAnimationFrame(loop);
       };
       raf = requestAnimationFrame(loop);
@@ -236,7 +247,7 @@ function LyricsDisplayImpl({ segments, position, fontScale }: LyricsDisplayProps
 
     apply(getCurrentTime());
     return subscribe((time) => apply(time));
-  }, [segments, subscribe, getCurrentTime, animate]);
+  }, [segments, subscribe, getCurrentTime, animate, performanceMode]);
 
   if (segments.length === 0) {
     return null;

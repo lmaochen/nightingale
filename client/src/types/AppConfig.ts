@@ -66,4 +66,12 @@ export type AppConfig = {
    * Multiplier applied to the lyrics font size; `1.0` is the default size.
    */
   lyrics_font_scale: number | null;
+  /**
+   * Reduce visual rendering cost on low-power devices.
+   */
+  playback_performance_mode: boolean | null;
+  /**
+   * Show the pitch graph overlay during playback.
+   */
+  playback_show_pitch_graph: boolean | null;
 };

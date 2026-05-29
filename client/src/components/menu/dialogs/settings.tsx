@@ -63,6 +63,8 @@ const DEFAULT_LYRICS_FONT_SCALE = 1;
 const LYRICS_FONT_SCALE_MIN = 0.5;
 const LYRICS_FONT_SCALE_MAX = 2;
 const LYRICS_FONT_SCALE_STEP = 0.05;
+const DEFAULT_PLAYBACK_PERFORMANCE_MODE = false;
+const DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH = true;
 const DEFAULT_AUTO_RESCAN_SECONDS = 0;
 const AUTO_RESCAN_SECONDS_MIN = 0;
 const AUTO_RESCAN_SECONDS_MAX = 3600;
@@ -77,8 +79,8 @@ const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
 // The playback/tuning rows sit between Batch Size and the footer.
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 1, 2, 1, 1, 2, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 1, 2, 1, 1, 2, 2];
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -135,13 +137,15 @@ export const SettingsDialog = () => {
   const batchSegment = isParakeet ? 5 : 7;
   const lyricsPositionSegment = batchSegment + 1;
   const lyricsFontSegment = batchSegment + 2;
-  const autoRescanSegment = batchSegment + 3;
-  const autoAnalyzeSegment = batchSegment + 4;
-  const downtifyBaseUrlSegment = batchSegment + 5;
-  const karaokeEnabledSegment = batchSegment + 6;
-  const karaokePinSegment = batchSegment + 7;
-  const karaokeDisplayNameSegment = batchSegment + 8;
-  const karaokeAllowGuestControlsSegment = batchSegment + 9;
+  const playbackPerformanceSegment = batchSegment + 3;
+  const pitchGraphSegment = batchSegment + 4;
+  const autoRescanSegment = batchSegment + 5;
+  const autoAnalyzeSegment = batchSegment + 6;
+  const downtifyBaseUrlSegment = batchSegment + 7;
+  const karaokeEnabledSegment = batchSegment + 8;
+  const karaokePinSegment = batchSegment + 9;
+  const karaokeDisplayNameSegment = batchSegment + 10;
+  const karaokeAllowGuestControlsSegment = batchSegment + 11;
 
   const { isFocused } = useDialogNav({
     open,
@@ -232,6 +236,10 @@ export const SettingsDialog = () => {
   const lyricsFontPct = Math.round(
     (config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE) * 100,
   );
+  const playbackPerformanceMode =
+    config?.playback_performance_mode ?? DEFAULT_PLAYBACK_PERFORMANCE_MODE;
+  const playbackShowPitchGraph =
+    config?.playback_show_pitch_graph ?? DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH;
   const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
@@ -439,6 +447,50 @@ export const SettingsDialog = () => {
               />
             </Field>
             <Field>
+              <Label>Playback Performance Mode</Label>
+              <FieldDescription>
+                Reduces animation/render workload for low-power tablets and older devices
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackPerformanceMode ? "default" : "outline"}
+                  onClick={() => mutate({ playback_performance_mode: true })}
+                  className={generateRingClassName(playbackPerformanceSegment, 0)}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!playbackPerformanceMode ? "default" : "outline"}
+                  onClick={() => mutate({ playback_performance_mode: false })}
+                  className={generateRingClassName(playbackPerformanceSegment, 1)}
+                >
+                  Off
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
+              <Label>Pitch Graph Overlay</Label>
+              <FieldDescription>
+                Show/hide the top pitch graph independently from performance mode
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackShowPitchGraph ? "default" : "outline"}
+                  onClick={() => mutate({ playback_show_pitch_graph: true })}
+                  className={generateRingClassName(pitchGraphSegment, 0)}
+                >
+                  Show
+                </Button>
+                <Button
+                  variant={!playbackShowPitchGraph ? "default" : "outline"}
+                  onClick={() => mutate({ playback_show_pitch_graph: false })}
+                  className={generateRingClassName(pitchGraphSegment, 1)}
+                >
+                  Hide
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
               <Label>Auto Rescan Library</Label>
               <FieldDescription>
                 Automatically rescan your library every{" "}
@@ -591,6 +643,8 @@ export const SettingsDialog = () => {
                   karaoke_allow_guest_controls: null,
                   lyrics_position: DEFAULT_LYRICS_POSITION,
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
+                  playback_performance_mode: DEFAULT_PLAYBACK_PERFORMANCE_MODE,
+                  playback_show_pitch_graph: DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH,
                 })
               }
               className={generateRingClassName(footerSegment, 0)}

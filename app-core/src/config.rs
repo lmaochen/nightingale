@@ -136,6 +136,10 @@ pub struct AppConfig {
     pub lyrics_position: Option<LyricsPosition>,
     /// Multiplier applied to the lyrics font size; `1.0` is the default size.
     pub lyrics_font_scale: Option<f64>,
+    /// Reduce visual rendering cost on low-power devices.
+    pub playback_performance_mode: Option<bool>,
+    /// Show the pitch graph overlay during playback.
+    pub playback_show_pitch_graph: Option<bool>,
 }
 
 fn default_data_path_option() -> Option<PathBuf> {
@@ -172,6 +176,8 @@ impl Default for AppConfig {
             auto_analyze_new_content: None,
             lyrics_position: None,
             lyrics_font_scale: None,
+            playback_performance_mode: None,
+            playback_show_pitch_graph: None,
         }
     }
 }
@@ -369,6 +375,14 @@ impl AppConfig {
 
     pub fn karaoke_allow_guest_controls(&self) -> bool {
         self.karaoke_allow_guest_controls.unwrap_or(true)
+    }
+
+    pub fn playback_performance_mode(&self) -> bool {
+        self.playback_performance_mode.unwrap_or(false)
+    }
+
+    pub fn playback_show_pitch_graph(&self) -> bool {
+        self.playback_show_pitch_graph.unwrap_or(true)
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {
