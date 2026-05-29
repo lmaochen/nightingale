@@ -1,5 +1,6 @@
 import { loadSongs } from "@/bridge/songs";
 import { ensureMp3Stems } from "@/bridge/playback";
+import { prewarmPlaybackAudio } from "@/hooks/use-audio-player";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { useQuery } from "@tanstack/react-query";
@@ -120,6 +121,9 @@ export function useKaraokeHostAutoplay() {
 
     try {
       ensureMp3Stems(hash);
+      window.setTimeout(() => {
+        prewarmPlaybackAudio(hash);
+      }, 0);
     } catch {
       // Allow retry on transient failures.
       prewarmedHashesRef.current.delete(hash);

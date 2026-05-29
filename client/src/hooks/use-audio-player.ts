@@ -14,6 +14,114 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type TimeSubscriber = (time: number) => void;
 
+interface DecodedAudioPair {
+  instrumental: AudioBuffer;
+  vocals: AudioBuffer;
+  duration: number;
+}
+
+const decodedAudioCache = new Map<string, DecodedAudioPair>();
+const decodeInFlight = new Map<string, Promise<DecodedAudioPair>>();
+const DECODE_CACHE_LIMIT = 3;
+
+function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
+  if (decodedAudioCache.has(fileHash)) {
+    decodedAudioCache.delete(fileHash);
+  }
+  decodedAudioCache.set(fileHash, decoded);
+
+  while (decodedAudioCache.size > DECODE_CACHE_LIMIT) {
+    const oldest = decodedAudioCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    decodedAudioCache.delete(oldest);
+  }
+}
+
+async function decodeAudioForFileHash(
+  fileHash: string,
+  adapter: PlaybackAdapter,
+  ctx: AudioContext,
+): Promise<DecodedAudioPair> {
+  const paths = await adapter.getAudioPaths(fileHash);
+  const [instData, vocData] = await Promise.all([
+    fetch(paths.instrumental).then((r) => {
+      if (!r.ok) {
+        throw new Error(`Failed to fetch instrumental: ${r.status}`);
+      }
+      return r.arrayBuffer();
+    }),
+    fetch(paths.vocals).then((r) => {
+      if (!r.ok) {
+        throw new Error(`Failed to fetch vocals: ${r.status}`);
+      }
+      return r.arrayBuffer();
+    }),
+  ]);
+
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
+
+  const [instrumental, vocals] = await Promise.all([
+    ctx.decodeAudioData(instData),
+    ctx.decodeAudioData(vocData),
+  ]);
+
+  return { instrumental, vocals, duration: instrumental.duration };
+}
+
+function ensureDecodedAudio(
+  fileHash: string,
+  adapter: PlaybackAdapter,
+  ctx: AudioContext,
+): Promise<DecodedAudioPair> {
+  const cached = decodedAudioCache.get(fileHash);
+  if (cached) return Promise.resolve(cached);
+
+  const inflight = decodeInFlight.get(fileHash);
+  if (inflight) return inflight;
+
+  const task = decodeAudioForFileHash(fileHash, adapter, ctx)
+    .then((decoded) => {
+      cacheDecodedAudio(fileHash, decoded);
+      return decoded;
+    })
+    .finally(() => {
+      decodeInFlight.delete(fileHash);
+    });
+
+  decodeInFlight.set(fileHash, task);
+  return task;
+}
+
+/**
+ * Host-side optimization: decode the next queued song ahead of time so
+ * transition into playback avoids heavy decode stalls on low-power devices.
+ */
+export function prewarmPlaybackAudio(
+  fileHash: string,
+  adapter: PlaybackAdapter = playbackAdapter,
+): void {
+  if (!fileHash || decodedAudioCache.has(fileHash) || decodeInFlight.has(fileHash)) return;
+
+  const task = (async () => {
+    const warmCtx = new AudioContext();
+    try {
+      const decoded = await decodeAudioForFileHash(fileHash, adapter, warmCtx);
+      cacheDecodedAudio(fileHash, decoded);
+      return decoded;
+    } finally {
+      void warmCtx.close().catch(() => {});
+    }
+  })()
+    .finally(() => {
+      decodeInFlight.delete(fileHash);
+    });
+
+  decodeInFlight.set(fileHash, task);
+  void task.catch(() => {});
+}
+
 export interface AudioPlayer {
   getCurrentTime: () => number;
   subscribe: (fn: TimeSubscriber) => () => void;
@@ -177,52 +285,20 @@ export function useAudioPlayer(
 
     const isCancelled = () => cancelled || cancelledRef.current;
 
-    adapter
-      .getAudioPaths(fileHash)
-      .then(async (paths) => {
+    ensureDecodedAudio(fileHash, adapter, ctx)
+      .then(async ({ instrumental, vocals, duration }) => {
         if (isCancelled()) {
           return;
         }
-
-        const [instData, vocData] = await Promise.all([
-          fetch(paths.instrumental).then((r) => {
-            if (!r.ok) {
-              throw new Error(`Failed to fetch instrumental: ${r.status}`);
-            }
-
-            return r.arrayBuffer();
-          }),
-
-          fetch(paths.vocals).then((r) => {
-            if (!r.ok) {
-              throw new Error(`Failed to fetch vocals: ${r.status}`);
-            }
-
-            return r.arrayBuffer();
-          }),
-        ]);
 
         if (isCancelled()) {
           return;
         }
 
-        if (ctx.state === "suspended") {
-          await ctx.resume();
-        }
+        instrumentalBufRef.current = instrumental;
+        vocalsBufRef.current = vocals;
 
-        const [instBuf, vocBuf] = await Promise.all([
-          ctx.decodeAudioData(instData),
-          ctx.decodeAudioData(vocData),
-        ]);
-
-        if (isCancelled()) {
-          return;
-        }
-
-        instrumentalBufRef.current = instBuf;
-        vocalsBufRef.current = vocBuf;
-
-        setDuration(instBuf.duration);
+        setDuration(duration);
 
         setIsReady(true);
       })
