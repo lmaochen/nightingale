@@ -97,6 +97,15 @@ pub fn load_song_path_strings() -> rusqlite::Result<std::collections::HashSet<St
     })
 }
 
+pub fn load_song_hash_strings() -> rusqlite::Result<std::collections::HashSet<String>> {
+    with_conn(|c| {
+        let mut stmt = c.prepare("SELECT file_hash FROM songs")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        let v: Vec<String> = rows.collect::<Result<Vec<_>, _>>()?;
+        Ok(v.into_iter().collect())
+    })
+}
+
 pub fn append_songs(songs: &[Song]) -> rusqlite::Result<()> {
     if songs.is_empty() {
         return Ok(());

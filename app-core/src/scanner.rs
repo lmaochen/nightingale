@@ -5,15 +5,21 @@
 //!  - spawning the scan thread
 //!  - exposing `SongsStore` load/load_meta entry points used by the bridge
 
-use tracing::warn;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use tracing::{info, warn};
 
 use crate::{
     cache::CacheDir,
     config::AppConfig,
     library_db,
     library_model::{LoadSongsParams, SongsMeta, SongsStore},
+    analyzer::enqueue_one,
     source::{ScanContext, active_source_from_config},
 };
+
+static AUTO_RESCAN_LOOP_STARTED: AtomicBool = AtomicBool::new(false);
 
 impl SongsStore {
     pub fn load_all() -> Self {
@@ -46,6 +52,7 @@ impl SongsStore {
 /// Returns immediately; the scan runs on a background thread.
 pub fn start_scan() {
     let scan_generation = library_db::bump_scan_generation();
+    let before_hashes = library_db::load_song_hash_strings().unwrap_or_default();
 
     let source = match active_source_from_config(&AppConfig::load()) {
         Ok(Some(s)) => s,
@@ -80,6 +87,84 @@ pub fn start_scan() {
         };
         if let Err(e) = source.scan(&ctx) {
             warn!("[scanner] Scan failed: {e}");
+            return;
+        }
+
+        if !library_db::scan_generation_is_current(scan_generation) {
+            return;
+        }
+
+        let config = AppConfig::load();
+        if !config.auto_analyze_new_content() {
+            return;
+        }
+
+        let after_hashes = library_db::load_song_hash_strings().unwrap_or_default();
+        let mut newly_discovered: Vec<String> = after_hashes
+            .difference(&before_hashes)
+            .cloned()
+            .collect();
+        newly_discovered.sort_unstable();
+
+        if !newly_discovered.is_empty() {
+            info!(
+                "[scanner] Auto-enqueueing {} newly discovered item(s) for analysis",
+                newly_discovered.len()
+            );
+            for file_hash in newly_discovered {
+                enqueue_one(&file_hash);
+            }
+        }
+    });
+}
+
+/// Background supervisor that checks `AppConfig.auto_rescan_seconds` and
+/// periodically triggers scans when enabled. Runs in both desktop and web
+/// server mode because both call `app_core::startup()`.
+pub fn ensure_auto_rescan_loop() {
+    if AUTO_RESCAN_LOOP_STARTED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
+    std::thread::spawn(|| {
+        let mut next_due: Option<Instant> = None;
+
+        loop {
+            let config = AppConfig::load();
+            let maybe_interval = config.auto_rescan_seconds().map(Duration::from_secs);
+
+            let Some(interval) = maybe_interval else {
+                next_due = None;
+                std::thread::sleep(Duration::from_secs(2));
+                continue;
+            };
+
+            let now = Instant::now();
+            if next_due.is_none() {
+                next_due = Some(now + interval);
+            }
+
+            let due_at = next_due.expect("next_due set above");
+            if now < due_at {
+                let wait = (due_at - now).min(Duration::from_secs(2));
+                std::thread::sleep(wait);
+                continue;
+            }
+
+            let meta = SongsStore::load_meta();
+            if meta.processed_count < meta.count {
+                // A scan is still running (or was just triggered). Delay a bit
+                // so auto-rescan doesn't immediately cancel the in-flight scan
+                // by bumping generation again.
+                next_due = Some(now + Duration::from_secs(5));
+                continue;
+            }
+
+            start_scan();
+            next_due = Some(now + interval);
         }
     });
 }

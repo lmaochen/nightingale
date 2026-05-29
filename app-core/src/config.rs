@@ -116,6 +116,12 @@ pub struct AppConfig {
     pub separator: Option<String>,
     pub asr_engine: Option<String>,
     pub language_overrides: Option<HashMap<String, String>>,
+    /// Periodically trigger a background library rescan. `None`/`0` disables
+    /// automatic rescans.
+    pub auto_rescan_seconds: Option<u64>,
+    /// Automatically enqueue newly discovered songs/videos for analysis right
+    /// after each completed scan.
+    pub auto_analyze_new_content: Option<bool>,
     /// Vertical anchor for lyrics during playback (top / center / bottom).
     pub lyrics_position: Option<LyricsPosition>,
     /// Multiplier applied to the lyrics font size; `1.0` is the default size.
@@ -147,6 +153,8 @@ impl Default for AppConfig {
             separator: None,
             asr_engine: None,
             language_overrides: None,
+            auto_rescan_seconds: None,
+            auto_analyze_new_content: None,
             lyrics_position: None,
             lyrics_font_scale: None,
         }
@@ -304,6 +312,22 @@ impl AppConfig {
             .as_ref()
             .and_then(|m| m.get(file_hash))
             .map(|s| s.as_str())
+    }
+
+    pub fn auto_rescan_seconds(&self) -> Option<u64> {
+        self.auto_rescan_seconds
+            .and_then(|seconds| {
+                if seconds == 0 {
+                    None
+                } else {
+                    Some(seconds)
+                }
+            })
+            .map(|seconds| seconds.clamp(5, 86_400))
+    }
+
+    pub fn auto_analyze_new_content(&self) -> bool {
+        self.auto_analyze_new_content.unwrap_or(false)
     }
 
     pub fn set_language_override(&mut self, file_hash: String, lang: String) {

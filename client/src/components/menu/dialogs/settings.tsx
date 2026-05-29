@@ -62,13 +62,17 @@ const DEFAULT_LYRICS_FONT_SCALE = 1;
 const LYRICS_FONT_SCALE_MIN = 0.5;
 const LYRICS_FONT_SCALE_MAX = 2;
 const LYRICS_FONT_SCALE_STEP = 0.05;
+const DEFAULT_AUTO_RESCAN_SECONDS = 0;
+const AUTO_RESCAN_SECONDS_MIN = 0;
+const AUTO_RESCAN_SECONDS_MAX = 3600;
+const AUTO_RESCAN_SECONDS_STEP = 30;
+const DEFAULT_AUTO_ANALYZE_NEW_CONTENT = false;
 
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
-// The lyrics rows sit between Batch Size and the footer; two new tunable
-// segments are appended just before the footer in both engine layouts.
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2];
+// The playback/tuning rows sit between Batch Size and the footer.
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -93,6 +97,10 @@ export const SettingsDialog = () => {
   useEffect(() => {
     lyricsFontScaleRef.current = config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE;
   }, [config?.lyrics_font_scale]);
+  const autoRescanSecondsRef = useRef(config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS);
+  useEffect(() => {
+    autoRescanSecondsRef.current = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
+  }, [config?.auto_rescan_seconds]);
 
   const asrEngine = config?.asr_engine ?? DEFAULT_ASR_ENGINE;
   const isParakeet = asrEngine === "parakeet";
@@ -101,10 +109,12 @@ export const SettingsDialog = () => {
   const itemCount = stops.reduce((sum, n) => sum + n, 0);
   const footerSegment = stops.length - 1;
 
-  // Batch Size is the last engine-specific segment; the lyrics rows follow it.
+  // Batch Size is the last engine-specific segment; playback rows follow it.
   const batchSegment = isParakeet ? 5 : 7;
   const lyricsPositionSegment = batchSegment + 1;
   const lyricsFontSegment = batchSegment + 2;
+  const autoRescanSegment = batchSegment + 3;
+  const autoAnalyzeSegment = batchSegment + 4;
 
   const { isFocused } = useDialogNav({
     open,
@@ -129,6 +139,16 @@ export const SettingsDialog = () => {
         );
         lyricsFontScaleRef.current = next;
         mutate({ lyrics_font_scale: next });
+        return true;
+      }
+      if (segment === autoRescanSegment) {
+        const delta = action.right ? AUTO_RESCAN_SECONDS_STEP : -AUTO_RESCAN_SECONDS_STEP;
+        const next = Math.min(
+          AUTO_RESCAN_SECONDS_MAX,
+          Math.max(AUTO_RESCAN_SECONDS_MIN, autoRescanSecondsRef.current + delta),
+        );
+        autoRescanSecondsRef.current = next;
+        mutate({ auto_rescan_seconds: next });
         return true;
       }
       return false;
@@ -185,6 +205,9 @@ export const SettingsDialog = () => {
   const lyricsFontPct = Math.round(
     (config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE) * 100,
   );
+  const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
+  const autoAnalyzeNewContent =
+    config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -371,6 +394,43 @@ export const SettingsDialog = () => {
                 className={generateRingClassName(lyricsFontSegment)}
               />
             </Field>
+            <Field>
+              <Label>Auto Rescan Library</Label>
+              <FieldDescription>
+                Automatically rescan your library every{" "}
+                {autoRescanSeconds > 0 ? `${autoRescanSeconds} seconds` : "disabled"}
+              </FieldDescription>
+              <Slider
+                min={AUTO_RESCAN_SECONDS_MIN}
+                max={AUTO_RESCAN_SECONDS_MAX}
+                step={AUTO_RESCAN_SECONDS_STEP}
+                value={[autoRescanSeconds]}
+                onValueChange={([seconds]) => mutate({ auto_rescan_seconds: seconds })}
+                className={generateRingClassName(autoRescanSegment)}
+              />
+            </Field>
+            <Field>
+              <Label>Auto Analyze New Content</Label>
+              <FieldDescription>
+                Automatically analyze songs and videos newly discovered during scans
+              </FieldDescription>
+              <ButtonGroup>
+                <Button
+                  variant={autoAnalyzeNewContent ? "default" : "outline"}
+                  onClick={() => mutate({ auto_analyze_new_content: true })}
+                  className={generateRingClassName(autoAnalyzeSegment, 0)}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!autoAnalyzeNewContent ? "default" : "outline"}
+                  onClick={() => mutate({ auto_analyze_new_content: false })}
+                  className={generateRingClassName(autoAnalyzeSegment, 1)}
+                >
+                  Off
+                </Button>
+              </ButtonGroup>
+            </Field>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -383,6 +443,8 @@ export const SettingsDialog = () => {
                   beam_size: DEFAULT_BEAM_BATCH_SIZE,
                   batch_size: DEFAULT_BEAM_BATCH_SIZE,
                   mic_monitor_gain: DEFAULT_MIC_MONITOR_GAIN,
+                  auto_rescan_seconds: DEFAULT_AUTO_RESCAN_SECONDS,
+                  auto_analyze_new_content: DEFAULT_AUTO_ANALYZE_NEW_CONTENT,
                   lyrics_position: DEFAULT_LYRICS_POSITION,
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                 })

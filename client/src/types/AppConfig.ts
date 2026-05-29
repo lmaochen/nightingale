@@ -31,6 +31,14 @@ export type AppConfig = {
   asr_engine: string | null;
   language_overrides: { [key in string]: string } | null;
   /**
+   * Periodically trigger a background library rescan. `null`/`0` disables it.
+   */
+  auto_rescan_seconds: number | null;
+  /**
+   * Automatically enqueue newly discovered songs/videos for analysis after scans.
+   */
+  auto_analyze_new_content: boolean | null;
+  /**
    * Vertical anchor for lyrics during playback (top / center / bottom).
    */
   lyrics_position: LyricsPosition | null;

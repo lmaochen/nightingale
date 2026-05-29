@@ -76,6 +76,8 @@ pub fn startup() -> Result<(), String> {
     if let Err(e) = refresh_analyzer_scripts_if_ready() {
         tracing::warn!("Failed to refresh analyzer scripts: {e}");
     }
+
+    scanner::ensure_auto_rescan_loop();
     
     Ok(())
 }
