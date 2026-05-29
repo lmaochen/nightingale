@@ -288,7 +288,21 @@ function PlaybackHudImpl({
               Exit Host
             </button>
           )}
-          {!liteMode && (
+          {liteMode ? (
+            <>
+              <HintRow text={formatGuideText(guideVolume)}>
+                <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
+                <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
+                <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
+              </HintRow>
+              <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
+                <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
+              </HintRow>
+              <HintRow text="Back">
+                <KeyChip label="ESC" ariaLabel="Back" onClick={handleBack} />
+              </HintRow>
+            </>
+          ) : (
             <>
               <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
                 Score: {pitchScore ?? "--"}

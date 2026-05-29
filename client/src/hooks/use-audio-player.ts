@@ -431,6 +431,30 @@ export function useAudioPlayer(
     const isCancelled = () => cancelled || cancelledRef.current;
 
     if (fastStartInstrumentalFirst && sequentialDecode) {
+      const cached = decodedAudioCache.get(fileHash);
+      if (cached) {
+        instrumentalBufRef.current = cached.instrumental;
+        vocalsBufRef.current = cached.vocals;
+        setDuration(cached.duration);
+        setDecodeFormat(cached.decodeFormat);
+        setIsReady(true);
+      } else if (decodeInFlight.has(fileHash)) {
+        void decodeInFlight
+          .get(fileHash)!
+          .then((decoded) => {
+            if (isCancelled()) return;
+            instrumentalBufRef.current = decoded.instrumental;
+            vocalsBufRef.current = decoded.vocals;
+            setDuration(decoded.duration);
+            setDecodeFormat(decoded.decodeFormat);
+            setIsReady(true);
+          })
+          .catch((e) => {
+            if (!isCancelled()) {
+              setError(`Failed to load audio: ${e}`);
+            }
+          });
+      } else {
       adapter
         .getAudioPaths(fileHash)
         .then(async (paths) => {
@@ -456,14 +480,49 @@ export function useAudioPlayer(
           setDecodeFormat(loadedDecodeFormat);
           setIsReady(true);
 
-          void fetch(paths.vocals)
-            .then((r) => {
-              if (!r.ok) {
-                throw new Error(`Failed to fetch vocals: ${r.status}`);
+          let vocalsTimeoutId: number | null = null;
+          const decodeVocalsWithTimeout = async (): Promise<AudioBuffer> => {
+            const timeoutMs = 6500;
+            const timeout = new Promise<AudioBuffer>((_, reject) => {
+              vocalsTimeoutId = window.setTimeout(
+                () => reject(new Error("vocals-decode-timeout")),
+                timeoutMs,
+              );
+            });
+            const primary = fetch(paths.vocals)
+              .then((r) => {
+                if (!r.ok) {
+                  throw new Error(`Failed to fetch vocals: ${r.status}`);
+                }
+                return r.arrayBuffer();
+              })
+              .then((vocData) => ctx.decodeAudioData(vocData));
+            return await Promise.race([primary, timeout]);
+          };
+
+          void Promise.resolve()
+            .then(async () => {
+              try {
+                return await decodeVocalsWithTimeout();
+              } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (!message.includes("vocals-decode-timeout")) {
+                  throw error;
+                }
+                const mp3Paths = await getAudioPathsClientMp3(fileHash);
+                const vocData = await fetch(mp3Paths.vocals).then((r) => {
+                  if (!r.ok) {
+                    throw new Error(`Failed to fetch fallback vocals: ${r.status}`);
+                  }
+                  return r.arrayBuffer();
+                });
+                return await ctx.decodeAudioData(vocData);
+              } finally {
+                if (vocalsTimeoutId !== null) {
+                  window.clearTimeout(vocalsTimeoutId);
+                }
               }
-              return r.arrayBuffer();
             })
-            .then((vocData) => ctx.decodeAudioData(vocData))
             .then((vocals) => {
               if (isCancelled()) {
                 return;
@@ -484,6 +543,7 @@ export function useAudioPlayer(
             setError(`Failed to load audio: ${e}`);
           }
         });
+      }
     } else {
       ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode, {
         decodeTimeoutMs: sequentialDecode ? 5000 : undefined,
