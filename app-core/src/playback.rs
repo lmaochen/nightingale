@@ -195,12 +195,21 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
     apply_decode_mode(resolve_audio_paths(file_hash))
 }
 
-fn convert_audio_to_wav(source: &Path, target: &Path) -> Result<(), NightingaleError> {
+fn convert_audio_to_wav(
+    source: &Path,
+    target: &Path,
+    performance_mode: bool,
+) -> Result<(), NightingaleError> {
     if let Some(parent) = target.parent() {
         std::fs::create_dir_all(parent)?;
     }
 
     let tmp = target.with_extension(format!("{}.tmp.wav", std::process::id()));
+    let (sample_rate, channels) = if performance_mode {
+        ("22050", "1")
+    } else {
+        ("44100", "2")
+    };
     let status = silent_command(ffmpeg_path())
         .args(["-y", "-i"])
         .arg(source)
@@ -208,9 +217,9 @@ fn convert_audio_to_wav(source: &Path, target: &Path) -> Result<(), NightingaleE
             "-c:a",
             "pcm_s16le",
             "-ar",
-            "44100",
+            sample_rate,
             "-ac",
-            "2",
+            channels,
             "-v",
             "error",
         ])
@@ -231,7 +240,15 @@ fn convert_audio_to_wav(source: &Path, target: &Path) -> Result<(), NightingaleE
     Ok(())
 }
 
-fn maybe_server_pcm_path(path: &str, cache_root: &Path) -> Option<String> {
+fn server_pcm_target_path(source: &Path, performance_mode: bool) -> PathBuf {
+    if performance_mode {
+        source.with_extension("perf.wav")
+    } else {
+        source.with_extension("wav")
+    }
+}
+
+fn maybe_server_pcm_path(path: &str, cache_root: &Path, performance_mode: bool) -> Option<String> {
     let source = PathBuf::from(path);
     if !source.is_file() || !source.starts_with(cache_root) {
         return None;
@@ -244,7 +261,7 @@ fn maybe_server_pcm_path(path: &str, cache_root: &Path) -> Option<String> {
         return Some(source.to_string_lossy().into_owned());
     }
 
-    let target = source.with_extension("wav");
+    let target = server_pcm_target_path(&source, performance_mode);
     if target.is_file() {
         return Some(target.to_string_lossy().into_owned());
     }
@@ -257,7 +274,7 @@ fn maybe_server_pcm_path(path: &str, cache_root: &Path) -> Option<String> {
         let source_for_worker = source.clone();
         let target_for_worker = target.clone();
         std::thread::spawn(move || {
-            let result = convert_audio_to_wav(&source_for_worker, &target_for_worker);
+            let result = convert_audio_to_wav(&source_for_worker, &target_for_worker, performance_mode);
             if let Err(err) = result {
                 warn!(
                     "server_pcm background conversion failed for {}: {}",
@@ -282,6 +299,7 @@ fn apply_decode_mode(paths: AudioPaths) -> AudioPaths {
     if config.playback_audio_decode_mode() != "server_pcm" {
         return paths;
     }
+    let performance_mode = config.playback_performance_mode();
 
     let cache = CacheDir::new();
     let AudioPaths {
@@ -289,8 +307,9 @@ fn apply_decode_mode(paths: AudioPaths) -> AudioPaths {
         vocals,
     } = paths;
     AudioPaths {
-        instrumental: maybe_server_pcm_path(&instrumental, &cache.path).unwrap_or(instrumental),
-        vocals: maybe_server_pcm_path(&vocals, &cache.path).unwrap_or(vocals),
+        instrumental: maybe_server_pcm_path(&instrumental, &cache.path, performance_mode)
+            .unwrap_or(instrumental),
+        vocals: maybe_server_pcm_path(&vocals, &cache.path, performance_mode).unwrap_or(vocals),
     }
 }
 
@@ -892,6 +911,7 @@ pub fn warm_server_pcm_cache_background() -> bool {
     std::thread::spawn(|| {
         let songs = crate::library_db::load_all_songs().unwrap_or_default();
         let cache = CacheDir::new();
+        let performance_mode = crate::config::AppConfig::load().playback_performance_mode();
         {
             let mut status = SERVER_PCM_CACHE_STATUS.lock().unwrap();
             *status = CacheWarmupStatus {
@@ -934,13 +954,13 @@ pub fn warm_server_pcm_cache_background() -> bool {
                     warmed += 1;
                     continue;
                 }
-                let target = source.with_extension("wav");
+                let target = server_pcm_target_path(&source, performance_mode);
                 if target.is_file() {
                     warmed += 1;
                     continue;
                 }
 
-                match convert_audio_to_wav(&source, &target) {
+                match convert_audio_to_wav(&source, &target, performance_mode) {
                     Ok(()) => warmed += 1,
                     Err(err) => {
                         failed += 1;

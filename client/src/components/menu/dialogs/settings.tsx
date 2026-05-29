@@ -82,6 +82,7 @@ const DEFAULT_KARAOKE_PIN = "1234";
 const DEFAULT_KARAOKE_DISPLAY_NAME = "Host";
 const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
 const WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM = 44_100 * 2 * 2 * 60;
+const WAV_MONO_22K16_BYTES_PER_MINUTE_PER_STEM = 22_050 * 2 * 1 * 60;
 
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
@@ -318,8 +319,11 @@ export const SettingsDialog = () => {
     (sum, song) => sum + (song.duration_secs > 0 ? song.duration_secs : 0),
     0,
   );
+  const pcmBytesPerMinutePerStem = playbackPerformanceMode
+    ? WAV_MONO_22K16_BYTES_PER_MINUTE_PER_STEM
+    : WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM;
   const estimatedPcmBytes =
-    (totalDurationSeconds / 60) * WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM * 2;
+    (totalDurationSeconds / 60) * pcmBytesPerMinutePerStem * 2;
   const estimatedPcmSizeLabel = formatBytesEstimate(estimatedPcmBytes);
   const estimatedSongCount = pcmEstimateSongs?.processed.length ?? 0;
 
@@ -673,7 +677,8 @@ export const SettingsDialog = () => {
               <Label>Server PCM Cache Warmup</Label>
               <FieldDescription>
                 Pre-convert cached stems to WAV for server PCM mode. Estimated extra disk:{" "}
-                {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs.
+                {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs
+                {playbackPerformanceMode ? " (performance profile)" : " (full-quality profile)"}.
               </FieldDescription>
               <p className="text-xs text-muted-foreground">
                 {formatWarmupProgress(warmupStatus?.server_pcm)}
