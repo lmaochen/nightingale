@@ -63,6 +63,9 @@ export function useKaraokeHostAutoplay() {
   const { snapshot, actions } = useJukeboxSession({ autoJoinPersistedIntent: false });
   const navigate = useNavigate();
   const location = useLocation();
+  const autoNextRequested =
+    location.pathname === "/host" &&
+    new URLSearchParams(location.search).get("autoNext") === "1";
   const launchingRef = useRef(false);
   const isHostDevice =
     typeof window !== "undefined" &&
@@ -102,7 +105,7 @@ export function useKaraokeHostAutoplay() {
     if (launchingRef.current) return;
 
     let targetSong: Song | null = null;
-    if (snapshot.current_song) {
+    if (snapshot.current_song && !autoNextRequested) {
       targetSong = resolveSongRef(snapshot.current_song, songs);
     }
 
@@ -127,5 +130,5 @@ export function useKaraokeHostAutoplay() {
     window.setTimeout(() => {
       launchingRef.current = false;
     }, 800);
-  }, [actions, currentPlaybackHash, isHostDevice, navigate, snapshot, songs]);
+  }, [actions, autoNextRequested, currentPlaybackHash, isHostDevice, navigate, snapshot, songs]);
 }

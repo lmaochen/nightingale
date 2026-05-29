@@ -224,9 +224,7 @@ export function useAudioPlayer(
 
         setDuration(instBuf.duration);
 
-        startSources(0);
         setIsReady(true);
-        setIsPlaying(true);
       })
       .catch((e) => {
         if (!isCancelled()) {

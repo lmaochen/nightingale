@@ -28,6 +28,20 @@ import type { AppConfig } from "@/types/AppConfig";
 import type { Song } from "@/types/Song";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
+const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
+
+function isHostBoothIntentActive(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(KARAOKE_JOIN_INTENT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { asHost?: unknown };
+    return parsed.asHost === true;
+  } catch {
+    return false;
+  }
+}
+
 export interface PlaybackInnerProps {
   song: Song;
   config: AppConfig | null;
@@ -39,7 +53,7 @@ interface PlaybackLayoutProps {
 }
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
-  const { isReady, paused, guideVolume } = usePlaybackTransportState();
+  const { isReady, isBooting, isFinished, paused, guideVolume } = usePlaybackTransportState();
   const { handleContinue, handleExit, handlePause, setGuideVolume } = usePlaybackTransportActions();
   const { themeIndex } = usePlaybackThemeState();
   const { setThemeIndex } = usePlaybackThemeActions();
@@ -55,9 +69,25 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   }, [snapshot, me]);
   const performanceMode = config?.playback_performance_mode ?? false;
   const showPitchGraph = config?.playback_show_pitch_graph ?? true;
+  const clearedFinishedSongRef = useRef(false);
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
+
+  useEffect(() => {
+    if (!isFinished) {
+      clearedFinishedSongRef.current = false;
+      return;
+    }
+    if (clearedFinishedSongRef.current) return;
+    if (!isHostBoothIntentActive()) return;
+    clearedFinishedSongRef.current = true;
+    actions.patchPlayback({
+      currentSong: null,
+      paused: false,
+      positionMs: 0,
+    });
+  }, [actions, isFinished]);
 
   useEffect(() => {
     if (!isReady || !snapshot) return;
@@ -125,7 +155,16 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>
       <Background performanceMode={performanceMode} />
 
-      {isReady && (
+      {(isBooting || !isReady) && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-black/80">
+          <div className="rounded-md border border-white/20 bg-black/70 px-4 py-3 text-center">
+            <p className="text-sm uppercase tracking-[0.18em] text-white/65">Preparing Playback</p>
+            <p className="mt-1 text-xs text-white/75">Loading stems, audio, and visuals...</p>
+          </div>
+        </div>
+      )}
+
+      {isReady && !isBooting && (
         <>
           <PlaybackHud
             title={song.title}

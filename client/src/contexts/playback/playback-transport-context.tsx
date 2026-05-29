@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 export interface PlaybackTransportState {
   isReady: boolean;
+  isBooting: boolean;
   isPlaying: boolean;
   isFinished: boolean;
   paused: boolean;
@@ -68,6 +69,8 @@ export function PlaybackTransportProvider({
 
   const [stemsReady, setStemsReady] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [isBooting, setIsBooting] = useState(true);
+  const startupHandledRef = useRef(false);
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -106,6 +109,23 @@ export function PlaybackTransportProvider({
   const audio = useAudioPlayer(fileHash, initialGuideVolumeRef.current, stemsReady);
 
   useEffect(() => {
+    if (!stemsReady || !audio.isReady) return;
+    if (startupHandledRef.current) return;
+    startupHandledRef.current = true;
+    setIsBooting(true);
+
+    const timer = window.setTimeout(() => {
+      audio.play();
+      setPaused(false);
+      setIsBooting(false);
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [audio, stemsReady]);
+
+  useEffect(() => {
     if (audio.error) {
       toast.error(audio.error);
       navigate("/", { replace: true });
@@ -130,6 +150,7 @@ export function PlaybackTransportProvider({
   const stateValue = useMemo<PlaybackTransportState>(
     () => ({
       isReady: audio.isReady,
+      isBooting,
       isPlaying: audio.isPlaying,
       isFinished: audio.isFinished,
       paused,
@@ -140,6 +161,7 @@ export function PlaybackTransportProvider({
     [
       audio.isReady,
       audio.isPlaying,
+      isBooting,
       audio.isFinished,
       audio.duration,
       audio.guideVolume,
