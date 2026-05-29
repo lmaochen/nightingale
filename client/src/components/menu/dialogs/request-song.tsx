@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useDialog } from "@/hooks/use-dialog";
+import { DOWNTIFY_QUEUE } from "@/queries/keys";
 import { useConfig } from "@/queries/use-config";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon, SearchIcon } from "lucide-react";
@@ -38,9 +39,8 @@ export const RequestSongDialog = () => {
   const [results, setResults] = useState<DowntifySong[]>([]);
   const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
   const queueQuery = useQuery({
-    queryKey: ["downtify-queue"],
+    queryKey: DOWNTIFY_QUEUE,
     queryFn: downtifyLoadQueue,
-    refetchInterval: open ? 2000 : false,
     enabled: open,
   });
   const queue = queueQuery.data ?? [];
