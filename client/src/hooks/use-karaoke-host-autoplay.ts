@@ -70,6 +70,7 @@ export function useKaraokeHostAutoplay() {
     new URLSearchParams(location.search).get("autoNext") === "1";
   const launchingRef = useRef(false);
   const prewarmedHashesRef = useRef(new Set<string>());
+  const prewarmingHashesRef = useRef(new Set<string>());
   const isHostDevice =
     typeof window !== "undefined" &&
     (() => {
@@ -110,22 +111,42 @@ export function useKaraokeHostAutoplay() {
     if (!nextSong) return;
 
     const hash = nextSong.file_hash;
-    if (!hash || prewarmedHashesRef.current.has(hash)) return;
+    if (!hash || prewarmedHashesRef.current.has(hash) || prewarmingHashesRef.current.has(hash)) {
+      return;
+    }
 
-    prewarmedHashesRef.current.add(hash);
+    prewarmingHashesRef.current.add(hash);
     if (prewarmedHashesRef.current.size > 64) {
       // Keep memory bounded for long-running host sessions.
       prewarmedHashesRef.current.clear();
-      prewarmedHashesRef.current.add(hash);
+      prewarmingHashesRef.current.clear();
+      prewarmingHashesRef.current.add(hash);
     }
 
     try {
       ensureMp3Stems(hash);
+      const attemptPrewarm = (attempt: number) => {
+        void prewarmPlaybackAudio(hash)
+          .then(() => {
+            prewarmingHashesRef.current.delete(hash);
+            prewarmedHashesRef.current.add(hash);
+          })
+          .catch(() => {
+            if (attempt >= 8) {
+              // Give up for now and allow a future retry.
+              prewarmingHashesRef.current.delete(hash);
+              return;
+            }
+            window.setTimeout(() => attemptPrewarm(attempt + 1), 1500);
+          });
+      };
+
       window.setTimeout(() => {
-        prewarmPlaybackAudio(hash);
-      }, 0);
+        attemptPrewarm(0);
+      }, 250);
     } catch {
       // Allow retry on transient failures.
+      prewarmingHashesRef.current.delete(hash);
       prewarmedHashesRef.current.delete(hash);
     }
   }, [isHostDevice, snapshot, songs]);

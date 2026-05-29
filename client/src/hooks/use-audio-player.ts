@@ -59,7 +59,11 @@ async function decodeAudioForFileHash(
   ]);
 
   if (ctx.state === "suspended") {
-    await ctx.resume();
+    try {
+      await ctx.resume();
+    } catch {
+      // Some browsers block resume without a user gesture; decode can still proceed.
+    }
   }
 
   const [instrumental, vocals] = await Promise.all([
@@ -101,8 +105,10 @@ function ensureDecodedAudio(
 export function prewarmPlaybackAudio(
   fileHash: string,
   adapter: PlaybackAdapter = playbackAdapter,
-): void {
-  if (!fileHash || decodedAudioCache.has(fileHash) || decodeInFlight.has(fileHash)) return;
+): Promise<void> {
+  if (!fileHash || decodedAudioCache.has(fileHash)) return Promise.resolve();
+  const inflight = decodeInFlight.get(fileHash);
+  if (inflight) return inflight.then(() => undefined);
 
   const task = (async () => {
     const warmCtx = new AudioContext();
@@ -119,7 +125,7 @@ export function prewarmPlaybackAudio(
     });
 
   decodeInFlight.set(fileHash, task);
-  void task.catch(() => {});
+  return task.then(() => undefined);
 }
 
 export interface AudioPlayer {
