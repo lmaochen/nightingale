@@ -26,6 +26,8 @@ import { toast } from "sonner";
 export interface PlaybackTransportState {
   isReady: boolean;
   isBooting: boolean;
+  stemsReady: boolean;
+  bootStage: string;
   isPlaying: boolean;
   isFinished: boolean;
   paused: boolean;
@@ -70,6 +72,7 @@ export function PlaybackTransportProvider({
   const [stemsReady, setStemsReady] = useState(false);
   const [paused, setPaused] = useState(false);
   const [isBooting, setIsBooting] = useState(true);
+  const [bootStage, setBootStage] = useState("Waiting for stems");
   const startupHandledRef = useRef(false);
 
   useEffect(() => {
@@ -90,6 +93,7 @@ export function PlaybackTransportProvider({
         navigate("/", { replace: true });
       } else {
         setStemsReady(true);
+        setBootStage("Decoding audio");
       }
     }).then((fn) => {
       if (cancelled) {
@@ -109,15 +113,27 @@ export function PlaybackTransportProvider({
   const audio = useAudioPlayer(fileHash, initialGuideVolumeRef.current, stemsReady);
 
   useEffect(() => {
+    if (!stemsReady) {
+      setBootStage("Waiting for stems");
+      return;
+    }
+    if (!audio.isReady) {
+      setBootStage("Decoding audio");
+    }
+  }, [audio.isReady, stemsReady]);
+
+  useEffect(() => {
     if (!stemsReady || !audio.isReady) return;
     if (startupHandledRef.current) return;
     startupHandledRef.current = true;
     setIsBooting(true);
+    setBootStage("Finalizing playback");
 
     const timer = window.setTimeout(() => {
       audio.play();
       setPaused(false);
       setIsBooting(false);
+      setBootStage("Ready");
     }, 350);
 
     return () => {
@@ -151,6 +167,8 @@ export function PlaybackTransportProvider({
     () => ({
       isReady: audio.isReady,
       isBooting,
+      stemsReady,
+      bootStage,
       isPlaying: audio.isPlaying,
       isFinished: audio.isFinished,
       paused,
@@ -162,6 +180,8 @@ export function PlaybackTransportProvider({
       audio.isReady,
       audio.isPlaying,
       isBooting,
+      stemsReady,
+      bootStage,
       audio.isFinished,
       audio.duration,
       audio.guideVolume,
