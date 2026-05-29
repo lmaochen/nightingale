@@ -126,14 +126,13 @@ export function useKaraokeHostAutoplay() {
       return;
     }
     const nextQueued = snapshot.queue[0];
-    const nextSong = resolveQueuedSong(nextQueued, songs);
-    if (!nextSong) {
+    const queuedHash = nextQueued.song?.["file_hash"];
+    const hash = typeof queuedHash === "string" && queuedHash.trim().length > 0 ? queuedHash : null;
+    if (!hash) {
       reportDecodeStatus(null, "cold");
       return;
     }
-
-    const hash = nextSong.file_hash;
-    if (!hash || prewarmedHashesRef.current.has(hash) || prewarmingHashesRef.current.has(hash)) {
+    if (prewarmedHashesRef.current.has(hash) || prewarmingHashesRef.current.has(hash)) {
       if (hash && prewarmedHashesRef.current.has(hash)) {
         reportDecodeStatus(hash, "warm");
       } else if (hash && prewarmingHashesRef.current.has(hash)) {
@@ -181,7 +180,7 @@ export function useKaraokeHostAutoplay() {
       prewarmedHashesRef.current.delete(hash);
       reportDecodeStatus(hash, "failed", "stems-prep-failed");
     }
-  }, [isHostDevice, reportDecodeStatus, snapshot, songs]);
+  }, [isHostDevice, reportDecodeStatus, snapshot]);
 
   useEffect(() => {
     if (!snapshot || !isHostDevice) return;
