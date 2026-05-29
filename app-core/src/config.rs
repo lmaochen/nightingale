@@ -74,6 +74,18 @@ impl LibrarySource {
     }
 }
 
+/// Vertical anchor for the lyrics during playback. Persisted globally so the
+/// choice applies to every song rather than per-track.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+#[ts(export)]
+pub enum LyricsPosition {
+    Top,
+    Center,
+    #[default]
+    Bottom,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub struct AppConfig {
@@ -104,6 +116,10 @@ pub struct AppConfig {
     pub separator: Option<String>,
     pub asr_engine: Option<String>,
     pub language_overrides: Option<HashMap<String, String>>,
+    /// Vertical anchor for lyrics during playback (top / center / bottom).
+    pub lyrics_position: Option<LyricsPosition>,
+    /// Multiplier applied to the lyrics font size; `1.0` is the default size.
+    pub lyrics_font_scale: Option<f64>,
 }
 
 fn default_data_path_option() -> Option<PathBuf> {
@@ -131,6 +147,8 @@ impl Default for AppConfig {
             separator: None,
             asr_engine: None,
             language_overrides: None,
+            lyrics_position: None,
+            lyrics_font_scale: None,
         }
     }
 }

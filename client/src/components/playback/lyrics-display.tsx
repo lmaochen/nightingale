@@ -1,4 +1,5 @@
 import { usePlaybackTransportActions, usePlaybackTransportState } from "@/contexts/playback";
+import type { LyricsPosition } from "@/types/LyricsPosition";
 import type { Segment, Word } from "@/types/Transcript";
 import { memo, useEffect, useRef, useState } from "react";
 
@@ -12,6 +13,16 @@ const COUNTDOWN_GAP_THRESHOLD = 3.5;
 
 // Grace period after a segment ends before it disappears
 const SEGMENT_LINGER = 0.5;
+
+// Vertical anchoring for the lyrics block, keyed by the user's config choice.
+const POSITION_CLASS: Record<LyricsPosition, string> = {
+  top: "justify-start pt-[60px]",
+  center: "justify-center",
+  bottom: "justify-end pb-[60px]",
+};
+
+const FONT_SCALE_MIN = 0.5;
+const FONT_SCALE_MAX = 2;
 
 interface WordStyle {
   rgb: string;
@@ -159,9 +170,11 @@ const lineClass = (hasReading: boolean, base: string, gap: string) =>
 
 interface LyricsDisplayProps {
   segments: Segment[];
+  position: LyricsPosition;
+  fontScale: number;
 }
 
-function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
+function LyricsDisplayImpl({ segments, position, fontScale }: LyricsDisplayProps) {
   const { isPlaying, paused } = usePlaybackTransportState();
   const { subscribe, getCurrentTime } = usePlaybackTransportActions();
   const animate = isPlaying && !paused;
@@ -237,8 +250,15 @@ function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
   const segHasReading = seg.words.some((w) => w.reading);
   const nextHasReading = nextSeg?.words.some((w) => w.reading) ?? false;
 
+  // Base font size drives the `em`-sized lyric text below, so a single
+  // multiplier scales the whole block (current line, next line, and readings).
+  const baseFontSize = `${Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, fontScale))}rem`;
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-[60px] z-10 flex flex-col items-center gap-2 px-10">
+    <div
+      className={`pointer-events-none absolute inset-0 z-10 flex flex-col items-center gap-2 px-10 ${POSITION_CLASS[position]}`}
+      style={{ fontSize: baseFontSize }}
+    >
       <div
         ref={containerRef}
         className="relative max-w-full rounded-lg bg-black/40 px-5 py-2.5"
@@ -253,7 +273,7 @@ function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
           <p
             className={lineClass(
               segHasReading,
-              "text-[2.5rem] leading-tight font-bold",
+              "text-[2.5em] leading-tight font-bold",
               "gap-x-3 gap-y-1",
             )}
           >
@@ -263,7 +283,7 @@ function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
                 word={word}
                 hasReading={segHasReading}
                 isLast={wi === seg.words.length - 1}
-                readingClass="text-[1rem]"
+                readingClass="text-[1em]"
                 refSetter={(el) => {
                   wordRefs.current[wi] = el;
                 }}
@@ -283,7 +303,7 @@ function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
           <p
             className={lineClass(
               nextHasReading,
-              "text-[1.5rem] leading-tight",
+              "text-[1.5em] leading-tight",
               "gap-x-2 gap-y-0.5",
             )}
           >
@@ -293,7 +313,7 @@ function LyricsDisplayImpl({ segments }: LyricsDisplayProps) {
                 word={word}
                 hasReading={nextHasReading}
                 isLast={wi === nextSeg.words.length - 1}
-                readingClass="text-[0.7rem]"
+                readingClass="text-[0.7em]"
                 style={nextLineStyle(word)}
               />
             ))}

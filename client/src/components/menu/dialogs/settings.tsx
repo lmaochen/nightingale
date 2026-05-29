@@ -28,10 +28,17 @@ import { useConfig } from "@/queries/use-config";
 import { useConfigMutation } from "@/mutations/use-config-mutation";
 import { useMicDevices } from "@/hooks/use-mic-pitch";
 import { cn } from "@/lib/utils";
+import type { LyricsPosition } from "@/types/LyricsPosition";
 
 const SEPARATORS = [
   { value: "karaoke", label: "UVR Karaoke" },
   { value: "demucs", label: "Demucs" },
+];
+
+const LYRICS_POSITIONS: { value: LyricsPosition; label: string }[] = [
+  { value: "top", label: "Top" },
+  { value: "center", label: "Center" },
+  { value: "bottom", label: "Bottom" },
 ];
 
 const ASR_ENGINES = [
@@ -50,10 +57,18 @@ const DEFAULT_MIC_MONITOR_GAIN = 0.65;
 const MIC_MONITOR_GAIN_STEP = 0.01;
 const MIC_MONITOR_GAIN_MAX = 2;
 
+const DEFAULT_LYRICS_POSITION: LyricsPosition = "bottom";
+const DEFAULT_LYRICS_FONT_SCALE = 1;
+const LYRICS_FONT_SCALE_MIN = 0.5;
+const LYRICS_FONT_SCALE_MAX = 2;
+const LYRICS_FONT_SCALE_STEP = 0.05;
+
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 2];
+// The lyrics rows sit between Batch Size and the footer; two new tunable
+// segments are appended just before the footer in both engine layouts.
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -74,12 +89,22 @@ export const SettingsDialog = () => {
     micMonitorGainRef.current = config?.mic_monitor_gain ?? DEFAULT_MIC_MONITOR_GAIN;
   }, [config?.mic_monitor_gain]);
 
+  const lyricsFontScaleRef = useRef(config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE);
+  useEffect(() => {
+    lyricsFontScaleRef.current = config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE;
+  }, [config?.lyrics_font_scale]);
+
   const asrEngine = config?.asr_engine ?? DEFAULT_ASR_ENGINE;
   const isParakeet = asrEngine === "parakeet";
 
   const stops = isParakeet ? SETTINGS_STOPS_PARAKEET : SETTINGS_STOPS_WHISPER;
   const itemCount = stops.reduce((sum, n) => sum + n, 0);
   const footerSegment = stops.length - 1;
+
+  // Batch Size is the last engine-specific segment; the lyrics rows follow it.
+  const batchSegment = isParakeet ? 5 : 7;
+  const lyricsPositionSegment = batchSegment + 1;
+  const lyricsFontSegment = batchSegment + 2;
 
   const { isFocused } = useDialogNav({
     open,
@@ -88,13 +113,25 @@ export const SettingsDialog = () => {
     onBack: close,
     containerRef,
     onAction: (segment, _slot, action) => {
-      if (segment !== MIC_MONITOR_GAIN_SEGMENT) return false;
       if (!action.left && !action.right) return false;
-      const delta = action.right ? MIC_MONITOR_GAIN_STEP : -MIC_MONITOR_GAIN_STEP;
-      const next = Math.min(MIC_MONITOR_GAIN_MAX, Math.max(0, micMonitorGainRef.current + delta));
-      micMonitorGainRef.current = next;
-      mutate({ mic_monitor_gain: next });
-      return true;
+      if (segment === MIC_MONITOR_GAIN_SEGMENT) {
+        const delta = action.right ? MIC_MONITOR_GAIN_STEP : -MIC_MONITOR_GAIN_STEP;
+        const next = Math.min(MIC_MONITOR_GAIN_MAX, Math.max(0, micMonitorGainRef.current + delta));
+        micMonitorGainRef.current = next;
+        mutate({ mic_monitor_gain: next });
+        return true;
+      }
+      if (segment === lyricsFontSegment) {
+        const delta = action.right ? LYRICS_FONT_SCALE_STEP : -LYRICS_FONT_SCALE_STEP;
+        const next = Math.min(
+          LYRICS_FONT_SCALE_MAX,
+          Math.max(LYRICS_FONT_SCALE_MIN, lyricsFontScaleRef.current + delta),
+        );
+        lyricsFontScaleRef.current = next;
+        mutate({ lyrics_font_scale: next });
+        return true;
+      }
+      return false;
     },
   });
 
@@ -138,12 +175,15 @@ export const SettingsDialog = () => {
       });
   };
 
-  const batchSegment = isParakeet ? 5 : 7;
-
   const batchSize = config?.batch_size ?? DEFAULT_BEAM_BATCH_SIZE;
   const beamSize = config?.beam_size ?? DEFAULT_BEAM_BATCH_SIZE;
   const micMonitorGainPct = Math.round(
     (config?.mic_monitor_gain ?? DEFAULT_MIC_MONITOR_GAIN) * 100,
+  );
+
+  const lyricsPosition = config?.lyrics_position ?? DEFAULT_LYRICS_POSITION;
+  const lyricsFontPct = Math.round(
+    (config?.lyrics_font_scale ?? DEFAULT_LYRICS_FONT_SCALE) * 100,
   );
 
   return (
@@ -303,6 +343,34 @@ export const SettingsDialog = () => {
                 {generateNumberSelect("batch_size", batchSize, batchSegment)}
               </ButtonGroup>
             </Field>
+            <Field>
+              <Label>Lyrics Position</Label>
+              <FieldDescription>Where lyrics are anchored on screen during playback</FieldDescription>
+              <ButtonGroup>
+                {LYRICS_POSITIONS.map(({ value, label }, idx) => (
+                  <Button
+                    key={value}
+                    variant={lyricsPosition === value ? "default" : "outline"}
+                    onClick={() => mutate({ lyrics_position: value })}
+                    className={generateRingClassName(lyricsPositionSegment, idx)}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </Field>
+            <Field>
+              <Label>Lyrics Size</Label>
+              <FieldDescription>Size of the lyrics text during playback ({lyricsFontPct}%)</FieldDescription>
+              <Slider
+                min={LYRICS_FONT_SCALE_MIN * 100}
+                max={LYRICS_FONT_SCALE_MAX * 100}
+                step={LYRICS_FONT_SCALE_STEP * 100}
+                value={[lyricsFontPct]}
+                onValueChange={([pct]) => mutate({ lyrics_font_scale: pct / 100 })}
+                className={generateRingClassName(lyricsFontSegment)}
+              />
+            </Field>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -315,6 +383,8 @@ export const SettingsDialog = () => {
                   beam_size: DEFAULT_BEAM_BATCH_SIZE,
                   batch_size: DEFAULT_BEAM_BATCH_SIZE,
                   mic_monitor_gain: DEFAULT_MIC_MONITOR_GAIN,
+                  lyrics_position: DEFAULT_LYRICS_POSITION,
+                  lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                 })
               }
               className={generateRingClassName(footerSegment, 0)}

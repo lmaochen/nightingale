@@ -50,7 +50,11 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
         <>
           <PlaybackHud title={song.title} artist={song.artist} config={config} />
           <PitchGraph series={series} />
-          <LyricsDisplay segments={segments} />
+          <LyricsDisplay
+            segments={segments}
+            position={config?.lyrics_position ?? "bottom"}
+            fontScale={config?.lyrics_font_scale ?? 1}
+          />
         </>
       )}
 
