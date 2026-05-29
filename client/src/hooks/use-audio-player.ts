@@ -132,8 +132,9 @@ async function decodeAudioForFileHash(
   }
 
   const timeoutMs = Math.max(1000, options.decodeTimeoutMs ?? 5500);
+  let timeoutId: number | null = null;
   const timeout = new Promise<DecodedAudioPair>((_, reject) => {
-    window.setTimeout(() => reject(new Error("decode-timeout")), timeoutMs);
+    timeoutId = window.setTimeout(() => reject(new Error("decode-timeout")), timeoutMs);
   });
 
   try {
@@ -145,6 +146,10 @@ async function decodeAudioForFileHash(
     }
     const mp3Paths = await getAudioPathsClientMp3(fileHash);
     return decodeFromPaths(mp3Paths);
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
   }
 }
 
