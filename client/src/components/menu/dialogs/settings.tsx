@@ -24,12 +24,14 @@ import { Slider } from "@/components/ui/slider";
 import { useEffect, useRef, useState } from "react";
 import { useDialogNav } from "@/hooks/navigation/use-dialog-nav";
 import { setFullScreen, isFullScreen as tauriIsFullScreen } from "@/bridge/fullScreen";
+import { warmStemsCache } from "@/bridge/playback";
 import { useDialog } from "@/hooks/use-dialog";
 import { useConfig } from "@/queries/use-config";
 import { useConfigMutation } from "@/mutations/use-config-mutation";
 import { useMicDevices } from "@/hooks/use-mic-pitch";
 import { cn } from "@/lib/utils";
 import type { LyricsPosition } from "@/types/LyricsPosition";
+import { toast } from "sonner";
 
 const SEPARATORS = [
   { value: "karaoke", label: "UVR Karaoke" },
@@ -79,8 +81,8 @@ const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
 // The playback/tuning rows sit between Batch Size and the footer.
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2, 2, 1, 2, 1, 2, 1, 1, 2, 2];
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 2, 2, 1, 2, 1, 1, 2, 1, 1, 2, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2, 2, 1, 2, 1, 1, 2, 1, 1, 2, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -141,11 +143,12 @@ export const SettingsDialog = () => {
   const pitchGraphSegment = batchSegment + 4;
   const autoRescanSegment = batchSegment + 5;
   const autoAnalyzeSegment = batchSegment + 6;
-  const downtifyBaseUrlSegment = batchSegment + 7;
-  const karaokeEnabledSegment = batchSegment + 8;
-  const karaokePinSegment = batchSegment + 9;
-  const karaokeDisplayNameSegment = batchSegment + 10;
-  const karaokeAllowGuestControlsSegment = batchSegment + 11;
+  const warmStemsSegment = batchSegment + 7;
+  const downtifyBaseUrlSegment = batchSegment + 8;
+  const karaokeEnabledSegment = batchSegment + 9;
+  const karaokePinSegment = batchSegment + 10;
+  const karaokeDisplayNameSegment = batchSegment + 11;
+  const karaokeAllowGuestControlsSegment = batchSegment + 12;
 
   const { isFocused } = useDialogNav({
     open,
@@ -526,6 +529,28 @@ export const SettingsDialog = () => {
                   Off
                 </Button>
               </ButtonGroup>
+            </Field>
+            <Field>
+              <Label>Stem Cache Warmup</Label>
+              <FieldDescription>
+                Background precompute for analyzed songs so playback starts faster on slower devices
+              </FieldDescription>
+              <Button
+                variant="outline"
+                className={generateRingClassName(warmStemsSegment)}
+                onClick={async () => {
+                  try {
+                    const started = await warmStemsCache();
+                    if (started) toast.success("Stem cache warmup started in background.");
+                    else toast.message("Stem cache warmup is already running.");
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    toast.error(`Failed to start stem warmup: ${message}`);
+                  }
+                }}
+              >
+                Warm Stem Cache Now
+              </Button>
             </Field>
             <Field>
               <Label>Downtify Base URL</Label>

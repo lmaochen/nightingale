@@ -9,6 +9,7 @@ import {
   loadTranscript as tauriLoadTranscript,
   onPixabayVideoDownloaded as tauriOnPixabayVideoDownloaded,
   onStemsReady as tauriOnStemsReady,
+  warmStemsCache as tauriWarmStemsCache,
 } from "./playback.tauri";
 import { isTauri } from "./runtime";
 
@@ -104,6 +105,7 @@ export const playbackAdapter: PlaybackAdapter = isTauri ? tauriPlaybackAdapter :
 
 export const loadTranscript = tauriLoadTranscript;
 export const ensureMp3Stems = tauriEnsureMp3Stems;
+export const warmStemsCache = tauriWarmStemsCache;
 export const ensurePlayableSourceVideo = tauriEnsurePlayableSourceVideo;
 export const fetchPixabayVideos = tauriFetchPixabayVideos;
 export const onStemsReady = tauriOnStemsReady;

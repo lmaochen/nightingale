@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 use rand::prelude::{IndexedRandom, SliceRandom};
@@ -726,6 +727,44 @@ pub fn ensure_mp3_stems_ready_payload(file_hash: String) -> StemsReady {
         file_hash,
         error: result.err().map(|e| e.to_string()),
     }
+}
+
+static STEMS_CACHE_WARMING: AtomicBool = AtomicBool::new(false);
+
+/// Starts a background pass that ensures cached stems exist for all analyzed
+/// songs. Returns `true` when a new warmup job is started, `false` when one is
+/// already running.
+pub fn warm_stems_cache_background() -> bool {
+    if STEMS_CACHE_WARMING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return false;
+    }
+
+    std::thread::spawn(|| {
+        let songs = crate::library_db::load_all_songs().unwrap_or_default();
+        let mut warmed = 0usize;
+        let mut failed = 0usize;
+
+        for song in songs {
+            // USDX uses bundled tracks, and non-analyzed songs typically have
+            // no stems yet, so only warm analyzable items.
+            if !song.is_analyzed && song.usdx.is_none() {
+                continue;
+            }
+
+            match ensure_mp3_stems(&song.file_hash) {
+                Ok(_) => warmed += 1,
+                Err(_) => failed += 1,
+            }
+        }
+
+        info!("Stem cache warmup finished: warmed={warmed}, failed={failed}");
+        STEMS_CACHE_WARMING.store(false, Ordering::SeqCst);
+    });
+
+    true
 }
 
 const PIXABAY_PER_PAGE: u32 = 200;

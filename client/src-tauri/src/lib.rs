@@ -21,7 +21,7 @@ use lyrics::{load_lyrics, save_lyrics, search_lrclib_lyrics};
 use microphones::{list_microphones, set_monitor_gain, start_mic_capture, stop_mic_capture};
 use playback::{
     ensure_mp3_stems, ensure_playable_source_video, fetch_pixabay_videos, get_audio_paths,
-    load_transcript,
+    load_transcript, warm_stems_cache,
 };
 use profile::{add_score, create_profile, delete_profile, load_profiles, switch_profile};
 use scanner::{
@@ -136,6 +136,7 @@ pub fn run() {
             load_transcript,
             get_audio_paths,
             ensure_mp3_stems,
+            warm_stems_cache,
             ensure_playable_source_video,
             fetch_pixabay_videos,
             get_media_endpoint,

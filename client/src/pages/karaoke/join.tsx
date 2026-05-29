@@ -90,6 +90,7 @@ export function KaraokeJoinPage() {
   const [query, setQuery] = useState("");
   const [artistQuery, setArtistQuery] = useState("");
   const [selectedArtist, setSelectedArtist] = useState<string | null>(null);
+  const [showArtistSection, setShowArtistSection] = useState(true);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<Song[]>([]);
   const [importQuery, setImportQuery] = useState("");
@@ -393,14 +394,39 @@ export function KaraokeJoinPage() {
               >
                 Browse Latest
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full sm:w-auto"
+                disabled={!me || searching || (!query.trim() && !artistQuery.trim() && !selectedArtist)}
+                onClick={() => {
+                  setQuery("");
+                  setArtistQuery("");
+                  setSelectedArtist(null);
+                  setResults([]);
+                  void loadLatestSongs();
+                }}
+              >
+                Clear Search
+              </Button>
             </div>
-            <Input
-              value={artistQuery}
-              onChange={(e) => setArtistQuery(e.target.value)}
-              placeholder="Search artists..."
-              disabled={!me}
-              className="sm:max-w-sm"
-            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setShowArtistSection((prev) => !prev)}
+            >
+              {showArtistSection ? "Hide Artist Search" : "Show Artist Search"}
+            </Button>
+            {showArtistSection && (
+              <Input
+                value={artistQuery}
+                onChange={(e) => setArtistQuery(e.target.value)}
+                placeholder="Search artists..."
+                disabled={!me}
+                className="sm:max-w-sm"
+              />
+            )}
             {selectedArtist && (
               <Button
                 type="button"
@@ -415,7 +441,7 @@ export function KaraokeJoinPage() {
               </Button>
             )}
           </form>
-          {visibleArtists.length > 0 && (
+          {showArtistSection && visibleArtists.length > 0 && (
             <div className="mt-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Browse artists</p>
               {artistInitials.length > 0 && (
@@ -471,7 +497,7 @@ export function KaraokeJoinPage() {
               </div>
             </div>
           )}
-          {visibleArtists.length === 0 && artistNeedle.length > 0 && (
+          {showArtistSection && visibleArtists.length === 0 && artistNeedle.length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">No artists matched that search.</p>
           )}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">

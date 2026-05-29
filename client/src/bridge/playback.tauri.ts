@@ -15,6 +15,10 @@ export const ensureMp3Stems = (fileHash: string): void => {
   void invoke<void>("ensure_mp3_stems", { fileHash });
 };
 
+export const warmStemsCache = async (): Promise<boolean> => {
+  return await invoke<boolean>("warm_stems_cache");
+};
+
 export const ensurePlayableSourceVideo = async (fileHash: string): Promise<string | null> => {
   return await invoke<string | null>("ensure_playable_source_video", { fileHash });
 };

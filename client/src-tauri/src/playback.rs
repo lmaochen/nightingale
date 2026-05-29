@@ -19,6 +19,11 @@ pub fn ensure_mp3_stems(app: AppHandle, file_hash: String) {
 }
 
 #[tauri::command]
+pub fn warm_stems_cache() -> bool {
+    app_core::warm_stems_cache_background()
+}
+
+#[tauri::command]
 pub fn ensure_playable_source_video(file_hash: String) -> Option<String> {
     app_core::ensure_playable_source_video(&file_hash)
         .ok()
