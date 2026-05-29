@@ -90,6 +90,7 @@ export function useKaraokeHostAutoplay() {
     typeof (location.state as { song?: Song }).song?.file_hash === "string"
       ? (location.state as { song: Song }).song.file_hash
       : null;
+  const isHostRuntime = isHostDevice || location.pathname === "/host" || location.pathname === "/playback";
 
   const { data: songsData } = useQuery({
     queryKey: ["karaoke-host-autoplay-songs"],
@@ -120,7 +121,7 @@ export function useKaraokeHostAutoplay() {
   );
 
   useEffect(() => {
-    if (!snapshot || !isHostDevice) return;
+    if (!snapshot || !isHostRuntime) return;
     if (snapshot.queue.length === 0) {
       reportDecodeStatus(null, "cold");
       return;
@@ -180,10 +181,10 @@ export function useKaraokeHostAutoplay() {
       prewarmedHashesRef.current.delete(hash);
       reportDecodeStatus(hash, "failed", "stems-prep-failed");
     }
-  }, [isHostDevice, reportDecodeStatus, snapshot]);
+  }, [isHostRuntime, reportDecodeStatus, snapshot]);
 
   useEffect(() => {
-    if (!snapshot || !isHostDevice) return;
+    if (!snapshot || !isHostRuntime) return;
     if (launchingRef.current) return;
 
     let targetSong: Song | null = null;
@@ -212,5 +213,5 @@ export function useKaraokeHostAutoplay() {
     window.setTimeout(() => {
       launchingRef.current = false;
     }, 800);
-  }, [actions, autoNextRequested, currentPlaybackHash, isHostDevice, navigate, snapshot, songs]);
+  }, [actions, autoNextRequested, currentPlaybackHash, isHostRuntime, navigate, snapshot, songs]);
 }
