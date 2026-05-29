@@ -24,7 +24,8 @@ interface DecodedAudioPair {
 const decodedAudioCache = new Map<string, DecodedAudioPair>();
 const decodeInFlight = new Map<string, Promise<DecodedAudioPair>>();
 const decodeErrorByHash = new Map<string, string>();
-const DECODE_CACHE_LIMIT = 3;
+const DEFAULT_DECODE_CACHE_LIMIT = 3;
+let decodeCacheLimit = DEFAULT_DECODE_CACHE_LIMIT;
 let decodeSequentialChain: Promise<void> = Promise.resolve();
 
 function runDecodeTask(
@@ -50,10 +51,34 @@ function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
   decodedAudioCache.set(fileHash, decoded);
   decodeErrorByHash.delete(fileHash);
 
-  while (decodedAudioCache.size > DECODE_CACHE_LIMIT) {
+  while (decodedAudioCache.size > decodeCacheLimit) {
     const oldest = decodedAudioCache.keys().next().value as string | undefined;
     if (!oldest) break;
     decodedAudioCache.delete(oldest);
+  }
+}
+
+export function setPlaybackAudioCacheLimit(limit: number): void {
+  const normalized = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : DEFAULT_DECODE_CACHE_LIMIT;
+  decodeCacheLimit = normalized;
+  while (decodedAudioCache.size > decodeCacheLimit) {
+    const oldest = decodedAudioCache.keys().next().value as string | undefined;
+    if (!oldest) break;
+    decodedAudioCache.delete(oldest);
+  }
+}
+
+export function clearPlaybackAudioCache(options?: { preserveHashes?: string[] }): void {
+  const preserve = new Set((options?.preserveHashes ?? []).filter(Boolean));
+  for (const hash of decodedAudioCache.keys()) {
+    if (!preserve.has(hash)) {
+      decodedAudioCache.delete(hash);
+    }
+  }
+  for (const hash of decodeErrorByHash.keys()) {
+    if (!preserve.has(hash)) {
+      decodeErrorByHash.delete(hash);
+    }
   }
 }
 
@@ -223,6 +248,11 @@ export function useAudioPlayer(
   const [error, setError] = useState<string | null>(null);
   const [decodeFormat, setDecodeFormat] = useState<"wav" | "mp3" | null>(null);
   const [guideVolume, setGuideVolumeState] = useState(initialGuideVolume);
+
+  useEffect(() => {
+    // Keep only one decoded pair in performance mode to reduce tablet idle memory.
+    setPlaybackAudioCacheLimit(sequentialDecode ? 1 : DEFAULT_DECODE_CACHE_LIMIT);
+  }, [sequentialDecode]);
 
   const getVocalsBuffer = useCallback(() => vocalsBufRef.current, []);
 
