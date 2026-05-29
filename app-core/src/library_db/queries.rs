@@ -157,6 +157,7 @@ fn append_structural_filters(
     if let Some(q) = query.filter(|s| !s.is_empty()) {
         match q {
             "analysed" => where_parts.push("s.is_analyzed = 1".to_string()),
+            "unanalysed" => where_parts.push("s.is_analyzed = 0".to_string()),
             "videos" => where_parts.push("s.is_video = 1".to_string()),
             "usdx" => where_parts.push("s.transcript_source = 'usdx'".to_string()),
             _ => {}
@@ -291,7 +292,16 @@ pub fn iter_file_hashes_filtered_not_analyzed(
 
 pub fn query_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {
     with_conn(|c| {
-        let (total, analysed_total, video_total, video_analysed, usdx_total, usdx_analysed): (
+        let (
+            total,
+            analysed_total,
+            unanalysed_total,
+            video_total,
+            video_analysed,
+            usdx_total,
+            usdx_analysed,
+        ): (
+            i64,
             i64,
             i64,
             i64,
@@ -302,6 +312,7 @@ pub fn query_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {
             "SELECT
                 (SELECT COUNT(*) FROM songs),
                 (SELECT COUNT(*) FROM songs WHERE is_analyzed = 1),
+                (SELECT COUNT(*) FROM songs WHERE is_analyzed = 0),
                 (SELECT COUNT(*) FROM songs WHERE is_video = 1),
                 (SELECT COUNT(*) FROM songs WHERE is_video = 1 AND is_analyzed = 1),
                 (SELECT COUNT(*) FROM songs WHERE transcript_source = 'usdx'),
@@ -315,6 +326,7 @@ pub fn query_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {
                     r.get(3)?,
                     r.get(4)?,
                     r.get(5)?,
+                    r.get(6)?,
                 ))
             },
         )?;
@@ -331,6 +343,12 @@ pub fn query_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {
                 label: "Analysed".into(),
                 analysed_count: analysed_total as u64,
                 count: analysed_total as u64,
+            },
+            LibraryMenuItem {
+                value: "unanalysed".into(),
+                label: "Unanalysed".into(),
+                analysed_count: 0,
+                count: unanalysed_total as u64,
             },
             LibraryMenuItem {
                 value: "videos".into(),

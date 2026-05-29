@@ -4,6 +4,7 @@ import {
   downtifySearchSongs,
   type DowntifySong,
 } from "@/bridge/downtify";
+import { loadAnalysisQueue } from "@/bridge/songs";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useDialog } from "@/hooks/use-dialog";
-import { DOWNTIFY_QUEUE } from "@/queries/keys";
+import { ANALYSIS_QUEUE, DOWNTIFY_QUEUE } from "@/queries/keys";
 import { useConfig } from "@/queries/use-config";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon, SearchIcon } from "lucide-react";
@@ -27,6 +28,19 @@ const DEFAULT_DOWNTIFY_URL = "http://karaoke.local:8000";
 function formatArtists(song: DowntifySong): string {
   const artists = Array.isArray(song.artists) ? song.artists.filter(Boolean) : [];
   return artists.length > 0 ? artists.join(", ") : "Unknown artist";
+}
+
+function formatAnalysisStatus(status: unknown): string {
+  if (status === "Queued") return "Queued";
+  if (status && typeof status === "object") {
+    if ("Analyzing" in status && typeof (status as { Analyzing?: unknown }).Analyzing === "number") {
+      return `Analyzing ${Math.round((status as { Analyzing: number }).Analyzing)}%`;
+    }
+    if ("Failed" in status && typeof (status as { Failed?: unknown }).Failed === "string") {
+      return `Failed: ${(status as { Failed: string }).Failed}`;
+    }
+  }
+  return "Queued";
 }
 
 export const RequestSongDialog = () => {
@@ -44,6 +58,16 @@ export const RequestSongDialog = () => {
     enabled: open,
   });
   const queue = queueQuery.data ?? [];
+  const analysisQuery = useQuery({
+    queryKey: ANALYSIS_QUEUE,
+    queryFn: loadAnalysisQueue,
+    enabled: open,
+    refetchInterval: 2000,
+  });
+  const analysisEntries = useMemo(
+    () => Object.entries(analysisQuery.data?.entries ?? {}).slice(0, 6),
+    [analysisQuery.data],
+  );
 
   const downtifyBaseUrl = config?.downtify_base_url?.trim() || DEFAULT_DOWNTIFY_URL;
 
@@ -163,6 +187,18 @@ export const RequestSongDialog = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {analysisEntries.length > 0 && (
+          <div className="max-h-28 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+            <p className="text-xs font-medium text-muted-foreground">Analysis queue progress</p>
+            {analysisEntries.map(([fileHash, status]) => (
+              <div key={fileHash} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate text-muted-foreground">{fileHash}</span>
+                <span className="shrink-0">{formatAnalysisStatus(status)}</span>
+              </div>
+            ))}
           </div>
         )}
 

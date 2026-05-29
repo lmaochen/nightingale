@@ -12,6 +12,7 @@ export const EMPTY_LIBRARY_FILTER: LibraryMenuFilters = {
 const HOT_FILTERS: Record<string, LibraryMenuFilters> = {
   all: { ...EMPTY_LIBRARY_FILTER },
   analysed: { ...EMPTY_LIBRARY_FILTER, query: "analysed" },
+  unanalysed: { ...EMPTY_LIBRARY_FILTER, query: "unanalysed" },
   videos: { ...EMPTY_LIBRARY_FILTER, query: "videos" },
   usdx: { ...EMPTY_LIBRARY_FILTER, query: "usdx" },
 };

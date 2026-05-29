@@ -1,18 +1,36 @@
 import { loadSongs } from "@/bridge/songs";
 import {
+  downtifyLoadQueue,
   downtifyQueueDownload,
   downtifySearchSongs,
+  type DowntifyQueueEntry,
   type DowntifySong,
 } from "@/bridge/downtify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
+import { loadAnalysisQueue } from "@/bridge/songs";
+import { ANALYSIS_QUEUE, DOWNTIFY_QUEUE } from "@/queries/keys";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 const DEFAULT_JOIN_NAME = "Guest";
+
+function formatAnalysisStatus(status: unknown): string {
+  if (status === "Queued") return "Queued";
+  if (status && typeof status === "object") {
+    if ("Analyzing" in status && typeof (status as { Analyzing?: unknown }).Analyzing === "number") {
+      return `Analyzing ${Math.round((status as { Analyzing: number }).Analyzing)}%`;
+    }
+    if ("Failed" in status && typeof (status as { Failed?: unknown }).Failed === "string") {
+      return `Failed: ${(status as { Failed: string }).Failed}`;
+    }
+  }
+  return "Queued";
+}
 
 export function KaraokeJoinPage() {
   const { connected, snapshot, me, actions } = useJukeboxSession();
@@ -25,6 +43,29 @@ export function KaraokeJoinPage() {
   const [importSearching, setImportSearching] = useState(false);
   const [importResults, setImportResults] = useState<DowntifySong[]>([]);
   const [downloadingSongId, setDownloadingSongId] = useState<string | null>(null);
+  const downtifyQueueQuery = useQuery({
+    queryKey: DOWNTIFY_QUEUE,
+    queryFn: downtifyLoadQueue,
+    enabled: true,
+    refetchInterval: 2000,
+  });
+  const downtifyActiveQueue = useMemo(
+    () =>
+      (downtifyQueueQuery.data ?? []).filter(
+        (entry: DowntifyQueueEntry) => entry.status === "queued" || entry.status === "downloading",
+      ),
+    [downtifyQueueQuery.data],
+  );
+  const analysisQuery = useQuery({
+    queryKey: ANALYSIS_QUEUE,
+    queryFn: loadAnalysisQueue,
+    enabled: true,
+    refetchInterval: 2000,
+  });
+  const analysisEntries = useMemo(
+    () => Object.entries(analysisQuery.data?.entries ?? {}).slice(0, 6),
+    [analysisQuery.data],
+  );
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
@@ -234,6 +275,41 @@ export function KaraokeJoinPage() {
               );
             })}
           </div>
+          {downtifyActiveQueue.length > 0 && (
+            <div className="mt-3 max-h-28 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+              <p className="text-xs font-medium text-muted-foreground">Download progress</p>
+              {downtifyActiveQueue.map((entry, idx) => {
+                const song = entry.song ?? {};
+                const title =
+                  typeof song.name === "string" && song.name.trim().length > 0
+                    ? song.name
+                    : "Unknown title";
+                const progress = typeof entry.progress === "number" ? Math.round(entry.progress) : 0;
+                return (
+                  <div key={`${title}-${idx}`} className="text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">{title}</span>
+                      <span className="shrink-0">{progress}%</span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-muted">
+                      <div className="h-full bg-primary" style={{ width: `${progress}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {analysisEntries.length > 0 && (
+            <div className="mt-3 max-h-28 space-y-1 overflow-y-auto rounded-md border border-border/60 p-2">
+              <p className="text-xs font-medium text-muted-foreground">Analysis progress</p>
+              {analysisEntries.map(([fileHash, status]) => (
+                <div key={fileHash} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="truncate text-muted-foreground">{fileHash}</span>
+                  <span className="shrink-0">{formatAnalysisStatus(status)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div id="join-controls" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
