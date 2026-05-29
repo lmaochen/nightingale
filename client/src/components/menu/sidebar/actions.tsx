@@ -22,6 +22,7 @@ import {
   DownloadIcon,
   HeartIcon,
   InfoIcon,
+  SearchIcon,
   RefreshCcwDotIcon,
   UserIcon,
 } from "lucide-react";
@@ -180,6 +181,10 @@ export const Actions = ({ registerCallback, focusedSidebarIndex }: ActionsProps)
               <DropdownMenuItem onClick={() => setMode("settings")}>
                 <CogIcon />
                 Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setMode("request-song")}>
+                <SearchIcon />
+                Request Song
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setMode("update")}>
                 <DownloadIcon />

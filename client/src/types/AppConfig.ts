@@ -31,6 +31,10 @@ export type AppConfig = {
   asr_engine: string | null;
   language_overrides: { [key in string]: string } | null;
   /**
+   * Base URL for the local Downtify instance used by "Request Song".
+   */
+  downtify_base_url: string | null;
+  /**
    * Periodically trigger a background library rescan. `null`/`0` disables it.
    */
   auto_rescan_seconds: number | null;

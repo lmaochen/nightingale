@@ -75,3 +75,17 @@ pub fn load_analysis_queue() -> AnalysisQueue {
 pub fn load_library_menu_items() -> Result<LibraryMenuItems, String> {
     app_core::load_library_menu_items().map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn downtify_search_songs(query: String) -> Result<Vec<serde_json::Value>, String> {
+    let config = AppConfig::load();
+    app_core::downtify_search_songs(&query, config.downtify_base_url.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn downtify_queue_download(song: serde_json::Value) -> Result<(), String> {
+    let config = AppConfig::load();
+    app_core::downtify_queue_download(song, config.downtify_base_url.as_deref())
+        .map_err(|e| e.to_string())
+}

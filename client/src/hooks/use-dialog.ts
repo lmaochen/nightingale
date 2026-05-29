@@ -8,6 +8,7 @@ export type DialogMode =
   | "create-profile"
   | "select-profile"
   | "settings"
+  | "request-song"
   | "about"
   | "update"
   | "donate"

@@ -182,6 +182,28 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
                 .map_err(|e| ApiError::internal(e.to_string()))?;
             Ok(serde_json::to_value(items).map_err(serde_err)?)
         }
+        "downtify_search_songs" => {
+            #[derive(Deserialize)]
+            struct Args {
+                query: String,
+            }
+            let args: Args = deserialize(payload)?;
+            let config = AppConfig::load();
+            let songs = app_core::downtify_search_songs(&args.query, config.downtify_base_url.as_deref())
+                .map_err(|e| ApiError::bad_request(e.to_string()))?;
+            Ok(serde_json::to_value(songs).map_err(serde_err)?)
+        }
+        "downtify_queue_download" => {
+            #[derive(Deserialize)]
+            struct Args {
+                song: Value,
+            }
+            let args: Args = deserialize(payload)?;
+            let config = AppConfig::load();
+            app_core::downtify_queue_download(args.song, config.downtify_base_url.as_deref())
+                .map_err(|e| ApiError::bad_request(e.to_string()))?;
+            Ok(Value::Null)
+        }
 
         // ── Analyzer ─────────────────────────────────────────────────────
         "enqueue_one" => {

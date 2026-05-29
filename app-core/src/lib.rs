@@ -1,6 +1,7 @@
 mod analyzer;
 mod cache;
 mod config;
+mod downtify;
 mod error;
 mod library_db;
 mod library_menu;
@@ -26,6 +27,7 @@ pub use cache::{
     default_nightingale_dir, nightingale_dir, normalized_target_path, same_path,
 };
 pub use config::{AppConfig, LibrarySource};
+pub use downtify::{queue_download as downtify_queue_download, search_songs as downtify_search_songs};
 pub use media_server::MediaEndpoint;
 pub use library_db::{init_library, library_db_path};
 pub use library_menu::{LibraryMenuItem, LibraryMenuItems, load_library_menu_items};

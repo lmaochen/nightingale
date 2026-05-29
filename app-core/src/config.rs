@@ -116,6 +116,8 @@ pub struct AppConfig {
     pub separator: Option<String>,
     pub asr_engine: Option<String>,
     pub language_overrides: Option<HashMap<String, String>>,
+    /// Base URL for the local Downtify instance used by "Request Song".
+    pub downtify_base_url: Option<String>,
     /// Periodically trigger a background library rescan. `None`/`0` disables
     /// automatic rescans.
     pub auto_rescan_seconds: Option<u64>,
@@ -153,6 +155,7 @@ impl Default for AppConfig {
             separator: None,
             asr_engine: None,
             language_overrides: None,
+            downtify_base_url: None,
             auto_rescan_seconds: None,
             auto_analyze_new_content: None,
             lyrics_position: None,

@@ -7,6 +7,7 @@ import { JellyfinConnectDialog } from "@/components/menu/dialogs/remote-source/j
 import { NavidromeConnectDialog } from "@/components/menu/dialogs/remote-source/navidrome-connect";
 import { SelectLanguageDialog } from "@/components/menu/dialogs/language";
 import { CreateProfileDialog } from "@/components/menu/dialogs/profile/create";
+import { RequestSongDialog } from "@/components/menu/dialogs/request-song";
 import { SelectProfileDialog } from "@/components/menu/dialogs/profile/select";
 import { SettingsDialog } from "@/components/menu/dialogs/settings";
 import { UpdateDialog } from "@/components/menu/dialogs/update";
@@ -60,6 +61,7 @@ export const Menu = () => {
     <Sidebar>
       {EXIT_SUPPORTED && <ExitDialog />}
       <SettingsDialog />
+      <RequestSongDialog />
       <CreateProfileDialog />
       <SelectProfileDialog />
       <InfoDialog />

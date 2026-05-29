@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldGroup } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -67,12 +68,13 @@ const AUTO_RESCAN_SECONDS_MIN = 0;
 const AUTO_RESCAN_SECONDS_MAX = 3600;
 const AUTO_RESCAN_SECONDS_STEP = 30;
 const DEFAULT_AUTO_ANALYZE_NEW_CONTENT = false;
+const DEFAULT_DOWNTIFY_BASE_URL = "http://karaoke.local:8000";
 
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
 // The playback/tuning rows sit between Batch Size and the footer.
-const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 2];
-const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 2];
+const SETTINGS_STOPS_WHISPER = [2, 1, 1, 1, 1, 1, 16, 16, 3, 1, 1, 2, 1, 2];
+const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 1, 2, 1, 2];
 
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
@@ -101,6 +103,12 @@ export const SettingsDialog = () => {
   useEffect(() => {
     autoRescanSecondsRef.current = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   }, [config?.auto_rescan_seconds]);
+  const [downtifyBaseUrlDraft, setDowntifyBaseUrlDraft] = useState(
+    config?.downtify_base_url ?? DEFAULT_DOWNTIFY_BASE_URL,
+  );
+  useEffect(() => {
+    setDowntifyBaseUrlDraft(config?.downtify_base_url ?? DEFAULT_DOWNTIFY_BASE_URL);
+  }, [config?.downtify_base_url]);
 
   const asrEngine = config?.asr_engine ?? DEFAULT_ASR_ENGINE;
   const isParakeet = asrEngine === "parakeet";
@@ -115,6 +123,7 @@ export const SettingsDialog = () => {
   const lyricsFontSegment = batchSegment + 2;
   const autoRescanSegment = batchSegment + 3;
   const autoAnalyzeSegment = batchSegment + 4;
+  const downtifyBaseUrlSegment = batchSegment + 5;
 
   const { isFocused } = useDialogNav({
     open,
@@ -208,6 +217,12 @@ export const SettingsDialog = () => {
   const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
+  const downtifyBaseUrl = config?.downtify_base_url ?? DEFAULT_DOWNTIFY_BASE_URL;
+
+  const commitDowntifyBaseUrl = () => {
+    const trimmed = downtifyBaseUrlDraft.trim();
+    mutate({ downtify_base_url: trimmed.length > 0 ? trimmed : null });
+  };
 
   return (
     <Dialog open={open} onOpenChange={close}>
@@ -431,6 +446,25 @@ export const SettingsDialog = () => {
                 </Button>
               </ButtonGroup>
             </Field>
+            <Field>
+              <Label>Downtify Base URL</Label>
+              <FieldDescription>
+                Nightingale uses this service for Request Song search/download ({downtifyBaseUrl})
+              </FieldDescription>
+              <Input
+                value={downtifyBaseUrlDraft}
+                onChange={(e) => setDowntifyBaseUrlDraft(e.target.value)}
+                onBlur={commitDowntifyBaseUrl}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitDowntifyBaseUrl();
+                  }
+                }}
+                placeholder={DEFAULT_DOWNTIFY_BASE_URL}
+                className={generateRingClassName(downtifyBaseUrlSegment)}
+              />
+            </Field>
           </FieldGroup>
           <DialogFooter>
             <Button
@@ -445,6 +479,7 @@ export const SettingsDialog = () => {
                   mic_monitor_gain: DEFAULT_MIC_MONITOR_GAIN,
                   auto_rescan_seconds: DEFAULT_AUTO_RESCAN_SECONDS,
                   auto_analyze_new_content: DEFAULT_AUTO_ANALYZE_NEW_CONTENT,
+                  downtify_base_url: null,
                   lyrics_position: DEFAULT_LYRICS_POSITION,
                   lyrics_font_scale: DEFAULT_LYRICS_FONT_SCALE,
                 })
