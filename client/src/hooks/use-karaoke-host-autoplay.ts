@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 const MAX_HOST_AUTOPLAY_SONGS = 5000;
+const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
 
 function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
@@ -59,10 +60,22 @@ function resolveQueuedSong(queueItem: { title: string; artist: string; song: Rec
  * when idle and queue has entries, auto-start the first playable song.
  */
 export function useKaraokeHostAutoplay() {
-  const { snapshot, me, actions } = useJukeboxSession();
+  const { snapshot, actions } = useJukeboxSession({ autoJoinPersistedIntent: false });
   const navigate = useNavigate();
   const location = useLocation();
   const launchingRef = useRef(false);
+  const isHostDevice =
+    typeof window !== "undefined" &&
+    (() => {
+      try {
+        const raw = window.localStorage.getItem(KARAOKE_JOIN_INTENT_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as { asHost?: unknown };
+        return parsed.asHost === true;
+      } catch {
+        return false;
+      }
+    })();
   const currentPlaybackHash =
     location.pathname === "/playback" &&
     location.state &&
@@ -85,7 +98,7 @@ export function useKaraokeHostAutoplay() {
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
 
   useEffect(() => {
-    if (!snapshot || !me || me.role !== "host") return;
+    if (!snapshot || !isHostDevice) return;
     if (launchingRef.current) return;
 
     let targetSong: Song | null = null;
@@ -114,5 +127,5 @@ export function useKaraokeHostAutoplay() {
     window.setTimeout(() => {
       launchingRef.current = false;
     }, 800);
-  }, [actions, currentPlaybackHash, me, navigate, snapshot, songs]);
+  }, [actions, currentPlaybackHash, isHostDevice, navigate, snapshot, songs]);
 }
