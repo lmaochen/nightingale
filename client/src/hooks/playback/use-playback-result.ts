@@ -22,6 +22,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
+const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
+
+function shouldReturnToHostRoute(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(KARAOKE_JOIN_INTENT_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { asHost?: unknown };
+    return parsed.asHost === true;
+  } catch {
+    return false;
+  }
+}
+
 export interface PlaybackResult {
   open: boolean;
   score: number;
@@ -68,9 +82,10 @@ export function usePlaybackResult(song: Song): PlaybackResult {
     const finalScore = scoreRef.current;
     const active = profileData?.active ?? null;
     const shouldShowResult = finalScore > 0;
+    const returnRoute = shouldReturnToHostRoute() ? "/host" : "/";
 
     if (!shouldShowResult) {
-      navigate("/", { replace: true });
+      navigate(returnRoute, { replace: true });
       return;
     }
 
@@ -84,7 +99,7 @@ export function usePlaybackResult(song: Song): PlaybackResult {
         setShowResult(true);
       } catch (e) {
         toast.error(`Could not save score: ${e instanceof Error ? e.message : String(e)}`);
-        navigate("/", { replace: true });
+        navigate(returnRoute, { replace: true });
       }
     })();
   }, [

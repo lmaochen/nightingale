@@ -16,6 +16,7 @@ import { Setup } from "./components/menu/dialogs/setup";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { UPDATES_SUPPORTED } from "./bridge/platform";
 import { useDowntifyQueueSync } from "./hooks/use-downtify-queue-sync";
+import { useKaraokeHostAutoplay } from "./hooks/use-karaoke-host-autoplay";
 
 const queryClient = new QueryClient();
 
@@ -31,11 +32,18 @@ const DowntifyQueueAutoSync = () => {
   return null;
 };
 
+const KaraokeHostAutoplay = () => {
+  useKaraokeHostAutoplay();
+
+  return null;
+};
+
 const InnerWrapper = () => (
   <>
     <MenuFocusProvider>
       <DowntifyQueueAutoSync />
       <BrowserRouter>
+        <KaraokeHostAutoplay />
         <Routes>
           <Route path="/" element={<Menu />} />
           <Route path="/playback" element={<Playback />} />

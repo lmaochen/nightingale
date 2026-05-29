@@ -9,6 +9,7 @@ import {
   usePlaybackTransportState,
 } from "@/contexts/playback";
 import { useGuideControls } from "@/hooks/playback";
+import type { JukeboxQueueItem } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import { forwardRef, memo, useCallback, useEffect, useRef } from "react";
 import { isPixabayTheme, themeName } from "./background";
@@ -95,9 +96,10 @@ interface PlaybackHudProps {
   title: string;
   artist: string;
   config: AppConfig | null;
+  karaokeQueue?: JukeboxQueueItem[];
 }
 
-function PlaybackHudImpl({ title, artist, config }: PlaybackHudProps) {
+function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackHudProps) {
   const { duration, guideVolume, paused } = usePlaybackTransportState();
   const { subscribe, getCurrentTime, handlePause, handleContinue } =
     usePlaybackTransportActions();
@@ -125,6 +127,7 @@ function PlaybackHudImpl({ title, artist, config }: PlaybackHudProps) {
   const skipOutroRef = useRef<HTMLButtonElement>(null);
 
   const showPixabayCredit = isPixabayTheme(themeIndex);
+  const upcomingQueue = karaokeQueue.slice(0, 4);
 
   // Updates the timer text and skip-button visibility via direct DOM mutation
   // (rAF subscriber), only triggering a text update when the displayed second changes.
@@ -165,6 +168,18 @@ function PlaybackHudImpl({ title, artist, config }: PlaybackHudProps) {
             <SkipButton ref={skipIntroRef} label="Skip Intro" onClick={handleSkipIntro} />
             <SkipButton ref={skipOutroRef} label="Skip Outro" onClick={handleSkipOutro} />
           </div>
+          {upcomingQueue.length > 0 && (
+            <div className="mt-3 max-w-md rounded-md border border-white/20 bg-black/35 p-2">
+              <p className="text-xs font-medium text-white/70">Up next</p>
+              <div className="mt-1 space-y-1">
+                {upcomingQueue.map((item, index) => (
+                  <p key={item.id} className="truncate text-xs text-white/75">
+                    {index + 1}. {item.title} - {item.requested_by_display_name}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-end gap-1">

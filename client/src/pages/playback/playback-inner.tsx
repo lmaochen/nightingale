@@ -20,6 +20,7 @@ import {
   usePlaybackTransportState,
 } from "@/contexts/playback";
 import { usePlaybackInput, usePlaybackResult } from "@/hooks/playback";
+import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import type { Song } from "@/types/Song";
 
@@ -38,6 +39,7 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   const { handleContinue, handleExit } = usePlaybackTransportActions();
   const { segments } = usePlaybackTranscriptState();
   const { series } = usePlaybackMicState();
+  const { snapshot } = useJukeboxSession({ autoJoinPersistedIntent: false });
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
@@ -48,7 +50,12 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
 
       {isReady && (
         <>
-          <PlaybackHud title={song.title} artist={song.artist} config={config} />
+          <PlaybackHud
+            title={song.title}
+            artist={song.artist}
+            config={config}
+            karaokeQueue={snapshot?.queue ?? []}
+          />
           <PitchGraph series={series} />
           <LyricsDisplay
             segments={segments}

@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
+
+interface JoinIntent {
+  pin: string;
+  displayName: string;
+  asHost: boolean;
+}
+
 export interface JukeboxParticipant {
   client_id: number;
   display_name: string;
@@ -19,6 +27,7 @@ export interface JukeboxQueueItem {
 }
 
 export interface JukeboxSessionSnapshot {
+  karaoke_enabled?: boolean;
   session_pin: string;
   participants: JukeboxParticipant[];
   queue: JukeboxQueueItem[];
@@ -48,13 +57,50 @@ function wsUrl(): string {
   return `${proto}//${window.location.host}/ws`;
 }
 
-export function useJukeboxSession() {
+function loadJoinIntent(): JoinIntent | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(KARAOKE_JOIN_INTENT_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<JoinIntent>;
+    if (
+      typeof parsed.pin === "string" &&
+      typeof parsed.displayName === "string" &&
+      typeof parsed.asHost === "boolean"
+    ) {
+      return {
+        pin: parsed.pin,
+        displayName: parsed.displayName,
+        asHost: parsed.asHost,
+      };
+    }
+  } catch {
+    // Ignore malformed persisted join state.
+  }
+  return null;
+}
+
+function persistJoinIntent(intent: JoinIntent | null) {
+  if (typeof window === "undefined") return;
+  if (!intent) {
+    window.localStorage.removeItem(KARAOKE_JOIN_INTENT_KEY);
+    return;
+  }
+  window.localStorage.setItem(KARAOKE_JOIN_INTENT_KEY, JSON.stringify(intent));
+}
+
+interface UseJukeboxSessionOptions {
+  autoJoinPersistedIntent?: boolean;
+}
+
+export function useJukeboxSession(options?: UseJukeboxSessionOptions) {
+  const autoJoinPersistedIntent = options?.autoJoinPersistedIntent ?? true;
   const [connected, setConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<JukeboxSessionSnapshot | null>(null);
   const [clientId, setClientId] = useState<number | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
-  const joinIntentRef = useRef<{ pin: string; displayName: string; asHost: boolean } | null>(null);
+  const joinIntentRef = useRef<JoinIntent | null>(loadJoinIntent());
 
   useEffect(() => {
     let isMounted = true;
@@ -67,7 +113,7 @@ export function useJukeboxSession() {
       ws.onopen = () => {
         setConnected(true);
         const intent = joinIntentRef.current;
-        if (intent) {
+        if (intent && autoJoinPersistedIntent) {
           ws.send(
             JSON.stringify({
               type: "session.join",
@@ -119,7 +165,7 @@ export function useJukeboxSession() {
       }
       socketRef.current?.close();
     };
-  }, []);
+  }, [autoJoinPersistedIntent]);
 
   const sendFrame = useCallback((frame: Record<string, unknown>) => {
     const ws = socketRef.current;
@@ -132,10 +178,12 @@ export function useJukeboxSession() {
       join: (pin: string, displayName: string, asHost = false) =>
         (() => {
           joinIntentRef.current = { pin, displayName, asHost };
+          persistJoinIntent(joinIntentRef.current);
           sendFrame({ type: "session.join", pin, display_name: displayName, as_host: asHost });
         })(),
       leave: () => {
         joinIntentRef.current = null;
+        persistJoinIntent(null);
         sendFrame({ type: "session.leave" });
       },
       addToQueue: (song: Record<string, unknown>) => sendFrame({ type: "queue.add", song }),
