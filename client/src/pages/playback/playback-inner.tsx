@@ -14,6 +14,8 @@ import { PitchGraph } from "@/components/playback/pitch-graph";
 import { PlaybackHud } from "@/components/playback/playback-hud";
 import {
   PlaybackProviders,
+  usePlaybackThemeActions,
+  usePlaybackThemeState,
   usePlaybackMicState,
   usePlaybackTranscriptState,
   usePlaybackTransportActions,
@@ -36,8 +38,10 @@ interface PlaybackLayoutProps {
 }
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
-  const { isReady, paused } = usePlaybackTransportState();
-  const { handleContinue, handleExit, handlePause } = usePlaybackTransportActions();
+  const { isReady, paused, guideVolume } = usePlaybackTransportState();
+  const { handleContinue, handleExit, handlePause, setGuideVolume } = usePlaybackTransportActions();
+  const { themeIndex } = usePlaybackThemeState();
+  const { setThemeIndex } = usePlaybackThemeActions();
   const { segments } = usePlaybackTranscriptState();
   const { series } = usePlaybackMicState();
   const { snapshot } = useJukeboxSession({ autoJoinPersistedIntent: false });
@@ -55,6 +59,21 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
       handleContinue();
     }
   }, [handleContinue, handlePause, isReady, paused, snapshot]);
+
+  useEffect(() => {
+    if (!isReady || !snapshot) return;
+    const target = snapshot.guide_volume;
+    if (typeof target !== "number") return;
+    if (Math.abs(target - guideVolume) < 0.01) return;
+    setGuideVolume(Math.max(0, Math.min(1, target)));
+  }, [guideVolume, isReady, setGuideVolume, snapshot]);
+
+  useEffect(() => {
+    if (!isReady || !snapshot) return;
+    if (typeof snapshot.theme !== "number") return;
+    if (snapshot.theme === themeIndex) return;
+    setThemeIndex(snapshot.theme);
+  }, [isReady, setThemeIndex, snapshot, themeIndex]);
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black" style={{ contain: "strict" }}>

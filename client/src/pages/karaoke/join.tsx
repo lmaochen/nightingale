@@ -49,7 +49,7 @@ export function KaraokeJoinPage() {
 
   return (
     <div className="min-h-screen bg-background p-4 text-foreground md:p-8">
-      <div className="mx-auto max-w-3xl space-y-4 pb-24 md:pb-0">
+      <div className="mx-auto max-w-3xl space-y-4 pb-28 md:pb-0">
         <div id="join-overview" className="rounded-lg border border-border/60 p-4 scroll-mt-20">
           <h1 className="text-2xl font-semibold">Join Karaoke</h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -111,7 +111,7 @@ export function KaraokeJoinPage() {
           <p className="mt-1 text-xs text-muted-foreground">
             Controls are currently {canControl ? "enabled" : "disabled"} for your role.
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-2 md:flex md:flex-wrap">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 md:flex md:flex-wrap">
             <Button
               variant="outline"
               className="w-full md:w-auto"
@@ -154,15 +154,27 @@ export function KaraokeJoinPage() {
             </Button>
             <Button
               variant="outline"
-              className="col-span-2 w-full md:w-auto"
+              className="w-full md:w-auto"
               disabled={!canControl}
               onClick={() =>
                 actions.patchSettings({
-                  theme: ((snapshot?.theme ?? -1) + 1) % 12,
+                  theme: Math.max(0, (snapshot?.theme ?? 0) - 1),
                 })
               }
             >
-              Next Theme
+              Theme -
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full md:w-auto"
+              disabled={!canControl}
+              onClick={() =>
+                actions.patchSettings({
+                  theme: (snapshot?.theme ?? 0) + 1,
+                })
+              }
+            >
+              Theme +
             </Button>
           </div>
         </div>
@@ -188,7 +200,7 @@ export function KaraokeJoinPage() {
           </div>
         </div>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 backdrop-blur md:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2">
           <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-overview")}>
             Join

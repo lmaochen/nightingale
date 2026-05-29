@@ -1,13 +1,15 @@
+import { Button } from "@/components/ui/button";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import { useConfig } from "@/queries/use-config";
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 const DEFAULT_HOST_NAME = "Host";
 
 export function KaraokeHostPage() {
   const { data: config } = useConfig();
   const { connected, snapshot, actions, me } = useJukeboxSession();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [name, setName] = useState(DEFAULT_HOST_NAME);
   const [pin, setPin] = useState("1234");
@@ -41,11 +43,20 @@ export function KaraokeHostPage() {
   }, [actions, me?.role, searchParams, setSearchParams]);
 
   const hostOccupied = snapshot?.host != null && me?.role !== "host";
+  const handleExitHost = () => {
+    actions.leave();
+    navigate("/", { replace: true });
+  };
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-black text-white">
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/50 to-black" />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center px-6 text-center">
+      <div className="relative z-10 flex h-full flex-col items-center justify-center px-4 text-center sm:px-6">
+        <div className="absolute right-3 top-3 sm:right-4 sm:top-4">
+          <Button variant="outline" size="sm" onClick={handleExitHost}>
+            Exit Host
+          </Button>
+        </div>
         <p className="text-xs uppercase tracking-[0.2em] text-white/60">Nightingale Booth</p>
         <h1 className="mt-3 text-4xl font-semibold md:text-6xl">
           {snapshot?.current_song ? "Now Playing" : "Waiting for songs"}
@@ -55,15 +66,15 @@ export function KaraokeHostPage() {
             ? "Playback is running on this host display"
             : "Guests can queue songs from their phones"}
         </p>
-        <p className="mt-2 text-sm text-white/60">Join code: {snapshot?.session_pin ?? pin}</p>
+        <p className="mt-2 text-base text-white/70">Join code: {snapshot?.session_pin ?? pin}</p>
         {hostOccupied && (
           <p className="mt-3 text-sm text-amber-300">
             Host is already claimed by another device. Close that session, then reload this page.
           </p>
         )}
-        <div className="mt-8 w-full max-w-2xl rounded-md border border-white/20 bg-black/40 p-4 text-left">
+        <div className="mt-6 w-full max-w-2xl rounded-md border border-white/20 bg-black/40 p-4 text-left sm:mt-8">
           <p className="text-xs uppercase tracking-[0.18em] text-white/60">Up Next</p>
-          <div className="mt-2 space-y-1">
+          <div className="mt-2 max-h-[42vh] space-y-1 overflow-y-auto pr-1">
             {(snapshot?.queue ?? []).slice(0, 6).map((item, idx) => (
               <p key={item.id} className="truncate text-sm text-white/80">
                 {idx + 1}. {item.title} - {item.requested_by_display_name}
