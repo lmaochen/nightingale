@@ -23,6 +23,24 @@ export const warmServerPcmCache = async (): Promise<boolean> => {
   return await invoke<boolean>("warm_server_pcm_cache");
 };
 
+export interface CacheWarmupStatus {
+  running: boolean;
+  total: number;
+  processed: number;
+  warmed: number;
+  failed: number;
+  skipped: number;
+}
+
+export interface PlaybackWarmupStatus {
+  stems: CacheWarmupStatus;
+  server_pcm: CacheWarmupStatus;
+}
+
+export const getPlaybackWarmupStatus = async (): Promise<PlaybackWarmupStatus> => {
+  return await invoke<PlaybackWarmupStatus>("get_playback_warmup_status");
+};
+
 export const ensurePlayableSourceVideo = async (fileHash: string): Promise<string | null> => {
   return await invoke<string | null>("ensure_playable_source_video", { fileHash });
 };

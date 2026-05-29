@@ -24,7 +24,7 @@ import { Slider } from "@/components/ui/slider";
 import { useEffect, useRef, useState } from "react";
 import { useDialogNav } from "@/hooks/navigation/use-dialog-nav";
 import { setFullScreen, isFullScreen as tauriIsFullScreen } from "@/bridge/fullScreen";
-import { warmServerPcmCache, warmStemsCache } from "@/bridge/playback";
+import { getPlaybackWarmupStatus, warmServerPcmCache, warmStemsCache } from "@/bridge/playback";
 import { loadSongs } from "@/bridge/songs";
 import { useDialog } from "@/hooks/use-dialog";
 import { useConfig } from "@/queries/use-config";
@@ -105,6 +105,26 @@ function formatBytesEstimate(bytes: number): string {
   return `${value.toFixed(fixed)} ${units[idx]}`;
 }
 
+function formatWarmupProgress(
+  status:
+    | {
+        running: boolean;
+        total: number;
+        processed: number;
+        warmed: number;
+        failed: number;
+        skipped: number;
+      }
+    | undefined,
+): string {
+  if (!status) return "Status unavailable";
+  const total = Math.max(0, status.total);
+  const processed = Math.max(0, Math.min(status.processed, total || status.processed));
+  const done = total > 0 && !status.running && processed >= total;
+  const prefix = status.running ? "Running" : done ? "Complete" : "Idle";
+  return `${prefix}: ${processed}/${total || "?"} | warm ${status.warmed} | failed ${status.failed} | skipped ${status.skipped}`;
+}
+
 export const SettingsDialog = () => {
   const micDevices = useMicDevices();
   const { mode, close } = useDialog();
@@ -126,6 +146,15 @@ export const SettingsDialog = () => {
   const [isFullScreen, setIsFullScreen] = useState<boolean | null | undefined>(config?.fullscreen);
 
   const open = mode === "settings";
+  const { data: warmupStatus } = useQuery({
+    queryKey: ["playback-warmup-status"],
+    queryFn: getPlaybackWarmupStatus,
+    enabled: open,
+    refetchInterval: (data) => {
+      if (!data) return 3000;
+      return data.stems.running || data.server_pcm.running ? 1000 : 3000;
+    },
+  });
 
   const micMonitorGainRef = useRef(config?.mic_monitor_gain ?? DEFAULT_MIC_MONITOR_GAIN);
   useEffect(() => {
@@ -620,6 +649,9 @@ export const SettingsDialog = () => {
               <FieldDescription>
                 Background precompute for analyzed songs so playback starts faster on slower devices
               </FieldDescription>
+              <p className="text-xs text-muted-foreground">
+                {formatWarmupProgress(warmupStatus?.stems)}
+              </p>
               <Button
                 variant="outline"
                 className={generateRingClassName(warmStemsSegment)}
@@ -643,6 +675,9 @@ export const SettingsDialog = () => {
                 Pre-convert cached stems to WAV for server PCM mode. Estimated extra disk:{" "}
                 {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs.
               </FieldDescription>
+              <p className="text-xs text-muted-foreground">
+                {formatWarmupProgress(warmupStatus?.server_pcm)}
+              </p>
               <Button
                 variant="outline"
                 onClick={async () => {

@@ -1,4 +1,6 @@
-use app_core::{ensure_mp3_stems_ready_payload, AudioPaths, PixabayVideoDownloaded};
+use app_core::{
+    ensure_mp3_stems_ready_payload, AudioPaths, PixabayVideoDownloaded, PlaybackWarmupStatus,
+};
 use tauri::{AppHandle, Emitter};
 
 #[tauri::command]
@@ -26,6 +28,11 @@ pub fn warm_stems_cache() -> bool {
 #[tauri::command]
 pub fn warm_server_pcm_cache() -> bool {
     app_core::warm_server_pcm_cache_background()
+}
+
+#[tauri::command]
+pub fn get_playback_warmup_status() -> PlaybackWarmupStatus {
+    app_core::playback_warmup_status()
 }
 
 #[tauri::command]

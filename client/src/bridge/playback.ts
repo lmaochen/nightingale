@@ -4,6 +4,7 @@ import {
   ensureMp3Stems as tauriEnsureMp3Stems,
   ensurePlayableSourceVideo as tauriEnsurePlayableSourceVideo,
   fetchPixabayVideos as tauriFetchPixabayVideos,
+  getPlaybackWarmupStatus as tauriGetPlaybackWarmupStatus,
   getAudioPaths as tauriRawGetAudioPaths,
   getMediaEndpoint as tauriGetMediaEndpoint,
   loadTranscript as tauriLoadTranscript,
@@ -15,6 +16,7 @@ import {
 import { isTauri } from "./runtime";
 
 export type { PixabayVideoDownloaded, StemsReadyEvent } from "./playback.tauri";
+export type { CacheWarmupStatus, PlaybackWarmupStatus } from "./playback.tauri";
 
 export interface PlaybackAdapter {
   /**
@@ -108,6 +110,7 @@ export const loadTranscript = tauriLoadTranscript;
 export const ensureMp3Stems = tauriEnsureMp3Stems;
 export const warmStemsCache = tauriWarmStemsCache;
 export const warmServerPcmCache = tauriWarmServerPcmCache;
+export const getPlaybackWarmupStatus = tauriGetPlaybackWarmupStatus;
 export const ensurePlayableSourceVideo = tauriEnsurePlayableSourceVideo;
 export const fetchPixabayVideos = tauriFetchPixabayVideos;
 export const onStemsReady = tauriOnStemsReady;

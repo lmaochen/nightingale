@@ -42,6 +42,37 @@ pub struct StemsReady {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CacheWarmupStatus {
+    pub running: bool,
+    pub total: usize,
+    pub processed: usize,
+    pub warmed: usize,
+    pub failed: usize,
+    pub skipped: usize,
+}
+
+impl CacheWarmupStatus {
+    fn idle() -> Self {
+        Self {
+            running: false,
+            total: 0,
+            processed: 0,
+            warmed: 0,
+            failed: 0,
+            skipped: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct PlaybackWarmupStatus {
+    pub stems: CacheWarmupStatus,
+    pub server_pcm: CacheWarmupStatus,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct PixabayVideoDownloaded {
     pub flavor: String,
@@ -834,8 +865,18 @@ pub fn ensure_mp3_stems_ready_payload(file_hash: String) -> StemsReady {
 
 static STEMS_CACHE_WARMING: AtomicBool = AtomicBool::new(false);
 static SERVER_PCM_CACHE_WARMING: AtomicBool = AtomicBool::new(false);
+static STEMS_CACHE_STATUS: LazyLock<Mutex<CacheWarmupStatus>> =
+    LazyLock::new(|| Mutex::new(CacheWarmupStatus::idle()));
+static SERVER_PCM_CACHE_STATUS: LazyLock<Mutex<CacheWarmupStatus>> =
+    LazyLock::new(|| Mutex::new(CacheWarmupStatus::idle()));
 static SERVER_PCM_INFLIGHT: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
+
+pub fn playback_warmup_status() -> PlaybackWarmupStatus {
+    let stems = STEMS_CACHE_STATUS.lock().unwrap().clone();
+    let server_pcm = SERVER_PCM_CACHE_STATUS.lock().unwrap().clone();
+    PlaybackWarmupStatus { stems, server_pcm }
+}
 
 /// Starts a background pass that pre-converts cached MP3 stems into WAV for
 /// server PCM mode. Returns `true` when a new warmup job is started, `false`
@@ -851,14 +892,30 @@ pub fn warm_server_pcm_cache_background() -> bool {
     std::thread::spawn(|| {
         let songs = crate::library_db::load_all_songs().unwrap_or_default();
         let cache = CacheDir::new();
+        {
+            let mut status = SERVER_PCM_CACHE_STATUS.lock().unwrap();
+            *status = CacheWarmupStatus {
+                running: true,
+                total: songs.len(),
+                processed: 0,
+                warmed: 0,
+                failed: 0,
+                skipped: 0,
+            };
+        }
         let mut warmed = 0usize;
         let mut skipped = 0usize;
         let mut failed = 0usize;
+        let mut processed = 0usize;
 
         for song in songs {
             // Need stems before PCM conversion can happen.
             if ensure_mp3_stems(&song.file_hash).is_err() {
                 skipped += 1;
+                processed += 1;
+                let mut status = SERVER_PCM_CACHE_STATUS.lock().unwrap();
+                status.processed = processed;
+                status.skipped = skipped;
                 continue;
             }
 
@@ -895,11 +952,26 @@ pub fn warm_server_pcm_cache_background() -> bool {
                     }
                 }
             }
+
+            processed += 1;
+            let mut status = SERVER_PCM_CACHE_STATUS.lock().unwrap();
+            status.processed = processed;
+            status.warmed = warmed;
+            status.failed = failed;
+            status.skipped = skipped;
         }
 
         info!(
             "Server PCM cache warmup finished: warmed={warmed}, skipped={skipped}, failed={failed}"
         );
+        {
+            let mut status = SERVER_PCM_CACHE_STATUS.lock().unwrap();
+            status.running = false;
+            status.processed = processed;
+            status.warmed = warmed;
+            status.failed = failed;
+            status.skipped = skipped;
+        }
         SERVER_PCM_CACHE_WARMING.store(false, Ordering::SeqCst);
     });
 
@@ -919,13 +991,31 @@ pub fn warm_stems_cache_background() -> bool {
 
     std::thread::spawn(|| {
         let songs = crate::library_db::load_all_songs().unwrap_or_default();
+        {
+            let mut status = STEMS_CACHE_STATUS.lock().unwrap();
+            *status = CacheWarmupStatus {
+                running: true,
+                total: songs.len(),
+                processed: 0,
+                warmed: 0,
+                failed: 0,
+                skipped: 0,
+            };
+        }
         let mut warmed = 0usize;
         let mut failed = 0usize;
+        let mut skipped = 0usize;
+        let mut processed = 0usize;
 
         for song in songs {
             // USDX uses bundled tracks, and non-analyzed songs typically have
             // no stems yet, so only warm analyzable items.
             if !song.is_analyzed && song.usdx.is_none() {
+                skipped += 1;
+                processed += 1;
+                let mut status = STEMS_CACHE_STATUS.lock().unwrap();
+                status.processed = processed;
+                status.skipped = skipped;
                 continue;
             }
 
@@ -933,9 +1023,24 @@ pub fn warm_stems_cache_background() -> bool {
                 Ok(_) => warmed += 1,
                 Err(_) => failed += 1,
             }
+
+            processed += 1;
+            let mut status = STEMS_CACHE_STATUS.lock().unwrap();
+            status.processed = processed;
+            status.warmed = warmed;
+            status.failed = failed;
+            status.skipped = skipped;
         }
 
         info!("Stem cache warmup finished: warmed={warmed}, failed={failed}");
+        {
+            let mut status = STEMS_CACHE_STATUS.lock().unwrap();
+            status.running = false;
+            status.processed = processed;
+            status.warmed = warmed;
+            status.failed = failed;
+            status.skipped = skipped;
+        }
         STEMS_CACHE_WARMING.store(false, Ordering::SeqCst);
     });
 

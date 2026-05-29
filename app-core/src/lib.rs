@@ -51,9 +51,11 @@ pub use lyrics::{
     LrclibCandidate, LyricsFile, load_lyrics_file, save_lyrics_and_realign, search_lrclib_for_hash,
 };
 pub use playback::{
-    AudioPaths, PixabayVideoDownloaded, ShiftDone, ShiftResult, StemsReady,
+    AudioPaths, CacheWarmupStatus, PixabayVideoDownloaded, PlaybackWarmupStatus, ShiftDone,
+    ShiftResult, StemsReady,
     download_pixabay_videos, ensure_mp3_stems, ensure_mp3_stems_ready_payload,
     ensure_playable_source_video, get_audio_paths, get_cached_pixabay_videos, load_transcript,
+    playback_warmup_status,
     prefetch_one_per_flavor, shift_key, shift_key_done_payload, shift_tempo,
     shift_tempo_done_payload,
     warm_server_pcm_cache_background, warm_stems_cache_background,
