@@ -19,6 +19,10 @@ export const warmStemsCache = async (): Promise<boolean> => {
   return await invoke<boolean>("warm_stems_cache");
 };
 
+export const warmServerPcmCache = async (): Promise<boolean> => {
+  return await invoke<boolean>("warm_server_pcm_cache");
+};
+
 export const ensurePlayableSourceVideo = async (fileHash: string): Promise<string | null> => {
   return await invoke<string | null>("ensure_playable_source_video", { fileHash });
 };

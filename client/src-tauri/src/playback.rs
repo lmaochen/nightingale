@@ -24,6 +24,11 @@ pub fn warm_stems_cache() -> bool {
 }
 
 #[tauri::command]
+pub fn warm_server_pcm_cache() -> bool {
+    app_core::warm_server_pcm_cache_background()
+}
+
+#[tauri::command]
 pub fn ensure_playable_source_video(file_hash: String) -> Option<String> {
     app_core::ensure_playable_source_video(&file_hash)
         .ok()

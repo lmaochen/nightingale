@@ -24,12 +24,14 @@ import { Slider } from "@/components/ui/slider";
 import { useEffect, useRef, useState } from "react";
 import { useDialogNav } from "@/hooks/navigation/use-dialog-nav";
 import { setFullScreen, isFullScreen as tauriIsFullScreen } from "@/bridge/fullScreen";
-import { warmStemsCache } from "@/bridge/playback";
+import { warmServerPcmCache, warmStemsCache } from "@/bridge/playback";
+import { loadSongs } from "@/bridge/songs";
 import { useDialog } from "@/hooks/use-dialog";
 import { useConfig } from "@/queries/use-config";
 import { useConfigMutation } from "@/mutations/use-config-mutation";
 import { useMicDevices } from "@/hooks/use-mic-pitch";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
 import type { LyricsPosition } from "@/types/LyricsPosition";
 import { toast } from "sonner";
 
@@ -79,6 +81,7 @@ const DEFAULT_KARAOKE_ENABLED = true;
 const DEFAULT_KARAOKE_PIN = "1234";
 const DEFAULT_KARAOKE_DISPLAY_NAME = "Host";
 const DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS = true;
+const WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM = 44_100 * 2 * 2 * 60;
 
 const MIC_MONITOR_GAIN_SEGMENT = 2;
 
@@ -89,11 +92,35 @@ const SETTINGS_STOPS_PARAKEET = [2, 1, 1, 1, 1, 16, 3, 1, 2, 2, 1, 2, 1, 1, 2, 1
 const RING = "ring-2 ring-primary";
 const NO_FOCUS_RING = "focus-visible:ring-0 focus-visible:border-transparent";
 
+function formatBytesEstimate(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let idx = 0;
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  const fixed = value >= 100 ? 0 : value >= 10 ? 1 : 2;
+  return `${value.toFixed(fixed)} ${units[idx]}`;
+}
+
 export const SettingsDialog = () => {
   const micDevices = useMicDevices();
   const { mode, close } = useDialog();
   const { data: config } = useConfig();
   const { mutate } = useConfigMutation();
+  const { data: pcmEstimateSongs } = useQuery({
+    queryKey: ["settings-server-pcm-estimate"],
+    queryFn: async () =>
+      loadSongs({
+        search: null,
+        filters: { artist: null, album: null, query: null },
+        skip: 0,
+        take: 10000,
+      }),
+    staleTime: 60_000,
+  });
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullScreen, setIsFullScreen] = useState<boolean | null | undefined>(config?.fullscreen);
@@ -258,6 +285,14 @@ export const SettingsDialog = () => {
   const karaokeEnabled = config?.karaoke_enabled ?? DEFAULT_KARAOKE_ENABLED;
   const karaokeAllowGuestControls =
     config?.karaoke_allow_guest_controls ?? DEFAULT_KARAOKE_ALLOW_GUEST_CONTROLS;
+  const totalDurationSeconds = (pcmEstimateSongs?.processed ?? []).reduce(
+    (sum, song) => sum + (song.duration_secs > 0 ? song.duration_secs : 0),
+    0,
+  );
+  const estimatedPcmBytes =
+    (totalDurationSeconds / 60) * WAV_STEREO_44K16_BYTES_PER_MINUTE_PER_STEM * 2;
+  const estimatedPcmSizeLabel = formatBytesEstimate(estimatedPcmBytes);
+  const estimatedSongCount = pcmEstimateSongs?.processed.length ?? 0;
 
   const commitDowntifyBaseUrl = () => {
     const trimmed = downtifyBaseUrlDraft.trim();
@@ -600,6 +635,28 @@ export const SettingsDialog = () => {
                 }}
               >
                 Warm Stem Cache Now
+              </Button>
+            </Field>
+            <Field>
+              <Label>Server PCM Cache Warmup</Label>
+              <FieldDescription>
+                Pre-convert cached stems to WAV for server PCM mode. Estimated extra disk:{" "}
+                {estimatedPcmSizeLabel} across ~{estimatedSongCount} songs.
+              </FieldDescription>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const started = await warmServerPcmCache();
+                    if (started) toast.success("Server PCM warmup started in background.");
+                    else toast.message("Server PCM warmup is already running.");
+                  } catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    toast.error(`Failed to start server PCM warmup: ${message}`);
+                  }
+                }}
+              >
+                Warm Server PCM Cache Now
               </Button>
             </Field>
             <Field>

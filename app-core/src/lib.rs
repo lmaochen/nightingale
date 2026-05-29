@@ -56,7 +56,7 @@ pub use playback::{
     ensure_playable_source_video, get_audio_paths, get_cached_pixabay_videos, load_transcript,
     prefetch_one_per_flavor, shift_key, shift_key_done_payload, shift_tempo,
     shift_tempo_done_payload,
-    warm_stems_cache_background,
+    warm_server_pcm_cache_background, warm_stems_cache_background,
 };
 pub use profile::ProfileStore;
 pub use scanner::start_scan;

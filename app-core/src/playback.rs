@@ -102,16 +102,16 @@ fn resolve_transcript_path(cache: &CacheDir, file_hash: &str) -> PathBuf {
     cache.transcript_path(file_hash)
 }
 
-pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
+fn resolve_audio_paths(file_hash: &str) -> AudioPaths {
     let cache = CacheDir::new();
     if let Some(song) = library_db::load_song_by_hash(file_hash).ok().flatten() {
         if let Some(bundle) = song.usdx.as_ref() {
             let voc = bundle.vocals.as_ref().unwrap_or(&bundle.audio);
             let inst = bundle.instrumental.as_ref().unwrap_or(&bundle.audio);
-            return apply_decode_mode(AudioPaths {
+            return AudioPaths {
                 instrumental: inst.to_string_lossy().into_owned(),
                 vocals: voc.to_string_lossy().into_owned(),
-            });
+            };
         }
 
         let effective_key = song.override_key.as_ref().or(song.key.as_ref());
@@ -122,25 +122,25 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
             let variant_vocals = cache.variant_vocals_path(file_hash, key, tempo);
             if is_base_original_selection(&song, key, tempo) {
                 if variant_instrumental.is_file() && variant_vocals.is_file() {
-                    return apply_decode_mode(AudioPaths {
+                    return AudioPaths {
                         instrumental: variant_instrumental.to_string_lossy().into_owned(),
                         vocals: variant_vocals.to_string_lossy().into_owned(),
-                    });
+                    };
                 }
                 let legacy_inst = cache.instrumental_path(file_hash);
                 let legacy_voc = cache.vocals_path(file_hash);
                 if legacy_inst.is_file() && legacy_voc.is_file() {
-                    return apply_decode_mode(AudioPaths {
+                    return AudioPaths {
                         instrumental: legacy_inst.to_string_lossy().into_owned(),
                         vocals: legacy_voc.to_string_lossy().into_owned(),
-                    });
+                    };
                 }
             }
             if variant_instrumental.is_file() && variant_vocals.is_file() {
-                return apply_decode_mode(AudioPaths {
+                return AudioPaths {
                     instrumental: variant_instrumental.to_string_lossy().into_owned(),
                     vocals: variant_vocals.to_string_lossy().into_owned(),
-                });
+                };
             }
         }
     }
@@ -148,16 +148,20 @@ pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
     let legacy_inst = cache.instrumental_path(file_hash);
     let legacy_voc = cache.vocals_path(file_hash);
     if legacy_inst.is_file() && legacy_voc.is_file() {
-        return apply_decode_mode(AudioPaths {
+        return AudioPaths {
             instrumental: legacy_inst.to_string_lossy().into_owned(),
             vocals: legacy_voc.to_string_lossy().into_owned(),
-        });
+        };
     }
 
-    apply_decode_mode(AudioPaths {
+    AudioPaths {
         instrumental: legacy_inst.to_string_lossy().into_owned(),
         vocals: legacy_voc.to_string_lossy().into_owned(),
-    })
+    }
+}
+
+pub fn get_audio_paths(file_hash: &str) -> AudioPaths {
+    apply_decode_mode(resolve_audio_paths(file_hash))
 }
 
 fn convert_audio_to_wav(source: &Path, target: &Path) -> Result<(), NightingaleError> {
@@ -210,17 +214,36 @@ fn maybe_server_pcm_path(path: &str, cache_root: &Path) -> Option<String> {
     }
 
     let target = source.with_extension("wav");
-    if !target.is_file() {
-        if let Err(err) = convert_audio_to_wav(&source, &target) {
-            warn!(
-                "server_pcm conversion failed for {}: {}",
-                source.to_string_lossy(),
-                err
-            );
-            return None;
-        }
+    if target.is_file() {
+        return Some(target.to_string_lossy().into_owned());
     }
-    Some(target.to_string_lossy().into_owned())
+
+    // Keep startup fast: don't block on ffmpeg conversion in the request path.
+    // Return MP3 this time, and prepare WAV in background for next playback.
+    let inflight_key = source.to_string_lossy().into_owned();
+    let mut inflight = SERVER_PCM_INFLIGHT.lock().unwrap();
+    if inflight.insert(inflight_key.clone()) {
+        let source_for_worker = source.clone();
+        let target_for_worker = target.clone();
+        std::thread::spawn(move || {
+            let result = convert_audio_to_wav(&source_for_worker, &target_for_worker);
+            if let Err(err) = result {
+                warn!(
+                    "server_pcm background conversion failed for {}: {}",
+                    source_for_worker.to_string_lossy(),
+                    err
+                );
+            } else {
+                info!(
+                    "server_pcm background conversion ready: {}",
+                    target_for_worker.to_string_lossy()
+                );
+            }
+            SERVER_PCM_INFLIGHT.lock().unwrap().remove(&inflight_key);
+        });
+    }
+
+    None
 }
 
 fn apply_decode_mode(paths: AudioPaths) -> AudioPaths {
@@ -810,6 +833,78 @@ pub fn ensure_mp3_stems_ready_payload(file_hash: String) -> StemsReady {
 }
 
 static STEMS_CACHE_WARMING: AtomicBool = AtomicBool::new(false);
+static SERVER_PCM_CACHE_WARMING: AtomicBool = AtomicBool::new(false);
+static SERVER_PCM_INFLIGHT: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Starts a background pass that pre-converts cached MP3 stems into WAV for
+/// server PCM mode. Returns `true` when a new warmup job is started, `false`
+/// when one is already running.
+pub fn warm_server_pcm_cache_background() -> bool {
+    if SERVER_PCM_CACHE_WARMING
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return false;
+    }
+
+    std::thread::spawn(|| {
+        let songs = crate::library_db::load_all_songs().unwrap_or_default();
+        let cache = CacheDir::new();
+        let mut warmed = 0usize;
+        let mut skipped = 0usize;
+        let mut failed = 0usize;
+
+        for song in songs {
+            // Need stems before PCM conversion can happen.
+            if ensure_mp3_stems(&song.file_hash).is_err() {
+                skipped += 1;
+                continue;
+            }
+
+            let paths = resolve_audio_paths(&song.file_hash);
+            for source_path in [&paths.instrumental, &paths.vocals] {
+                let source = PathBuf::from(source_path);
+                if !source.is_file() || !source.starts_with(&cache.path) {
+                    skipped += 1;
+                    continue;
+                }
+                if source
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
+                {
+                    warmed += 1;
+                    continue;
+                }
+                let target = source.with_extension("wav");
+                if target.is_file() {
+                    warmed += 1;
+                    continue;
+                }
+
+                match convert_audio_to_wav(&source, &target) {
+                    Ok(()) => warmed += 1,
+                    Err(err) => {
+                        failed += 1;
+                        warn!(
+                            "server_pcm warmup conversion failed for {}: {}",
+                            source.to_string_lossy(),
+                            err
+                        );
+                    }
+                }
+            }
+        }
+
+        info!(
+            "Server PCM cache warmup finished: warmed={warmed}, skipped={skipped}, failed={failed}"
+        );
+        SERVER_PCM_CACHE_WARMING.store(false, Ordering::SeqCst);
+    });
+
+    true
+}
 
 /// Starts a background pass that ensures cached stems exist for all analyzed
 /// songs. Returns `true` when a new warmup job is started, `false` when one is
