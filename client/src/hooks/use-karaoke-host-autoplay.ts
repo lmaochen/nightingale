@@ -1,6 +1,10 @@
 import { loadSongs } from "@/bridge/songs";
 import { ensureMp3Stems } from "@/bridge/playback";
-import { clearPlaybackAudioCache, prewarmPlaybackAudio } from "@/hooks/use-audio-player";
+import {
+  clearPlaybackAudioCache,
+  prewarmPlaybackAudio,
+  setPlaybackAudioCacheLimit,
+} from "@/hooks/use-audio-player";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import { useConfig } from "@/queries/use-config";
 import type { Song } from "@/types/Song";
@@ -110,6 +114,18 @@ export function useKaraokeHostAutoplay() {
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
   const performanceMode = config?.playback_performance_mode ?? false;
   const warmupCacheEnabled = config?.playback_warmup_cache_enabled ?? true;
+  const stickyPredecode = config?.playback_sticky_predecode ?? false;
+
+  useEffect(() => {
+    const targetLimit = isHostRuntime
+      ? performanceMode
+        ? stickyPredecode
+          ? 2
+          : 1
+        : 3
+      : 3;
+    setPlaybackAudioCacheLimit(targetLimit);
+  }, [isHostRuntime, performanceMode, stickyPredecode]);
 
   const reportDecodeStatus = useCallback(
     (fileHash: string | null, status: "cold" | "warming" | "warm" | "failed", error?: string) => {
@@ -199,6 +215,13 @@ export function useKaraokeHostAutoplay() {
 
   useEffect(() => {
     if (!isHostRuntime) return;
+    if (stickyPredecode) {
+      if (idleCleanupTimerRef.current !== null) {
+        window.clearTimeout(idleCleanupTimerRef.current);
+        idleCleanupTimerRef.current = null;
+      }
+      return;
+    }
     const isActivelyPlaying = Boolean(snapshot?.current_song) && snapshot?.paused === false;
     if (isActivelyPlaying && warmupCacheEnabled) {
       if (idleCleanupTimerRef.current !== null) {
@@ -224,7 +247,14 @@ export function useKaraokeHostAutoplay() {
         idleCleanupTimerRef.current = null;
       }
     };
-  }, [currentPlaybackHash, isHostRuntime, snapshot?.current_song, snapshot?.paused, warmupCacheEnabled]);
+  }, [
+    currentPlaybackHash,
+    isHostRuntime,
+    snapshot?.current_song,
+    snapshot?.paused,
+    stickyPredecode,
+    warmupCacheEnabled,
+  ]);
 
   useEffect(() => {
     if (!snapshot || !isHostRuntime) return;

@@ -223,6 +223,7 @@ export function useAudioPlayer(
   enabled: boolean,
   adapter: PlaybackAdapter = playbackAdapter,
   sequentialDecode = false,
+  stickyPredecode = false,
 ): AudioPlayer {
   const ctxRef = useRef<AudioContext | null>(null);
   const instrumentalBufRef = useRef<AudioBuffer | null>(null);
@@ -250,9 +251,10 @@ export function useAudioPlayer(
   const [guideVolume, setGuideVolumeState] = useState(initialGuideVolume);
 
   useEffect(() => {
-    // Keep only one decoded pair in performance mode to reduce tablet idle memory.
-    setPlaybackAudioCacheLimit(sequentialDecode ? 1 : DEFAULT_DECODE_CACHE_LIMIT);
-  }, [sequentialDecode]);
+    // Keep only one decoded pair in performance mode unless sticky predecode is enabled.
+    const targetLimit = sequentialDecode ? (stickyPredecode ? 2 : 1) : DEFAULT_DECODE_CACHE_LIMIT;
+    setPlaybackAudioCacheLimit(targetLimit);
+  }, [sequentialDecode, stickyPredecode]);
 
   const getVocalsBuffer = useCallback(() => vocalsBufRef.current, []);
 

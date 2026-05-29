@@ -82,4 +82,8 @@ export type AppConfig = {
    * Enable host-side queue prewarm decode cache for faster transitions.
    */
   playback_warmup_cache_enabled: boolean | null;
+  /**
+   * Keep a small sticky in-memory predecode buffer for smoother transitions.
+   */
+  playback_sticky_predecode: boolean | null;
 };

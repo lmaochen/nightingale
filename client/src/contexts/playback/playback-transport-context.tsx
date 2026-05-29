@@ -58,6 +58,7 @@ interface PlaybackTransportProviderProps {
   fileHash: string;
   initialGuideVolume: number;
   performanceMode: boolean;
+  stickyPredecode: boolean;
   children: ReactNode;
 }
 
@@ -65,6 +66,7 @@ export function PlaybackTransportProvider({
   fileHash,
   initialGuideVolume,
   performanceMode,
+  stickyPredecode,
   children,
 }: PlaybackTransportProviderProps) {
   const navigate = useNavigate();
@@ -112,7 +114,14 @@ export function PlaybackTransportProvider({
     };
   }, [fileHash, navigate]);
 
-  const audio = useAudioPlayer(fileHash, initialGuideVolumeRef.current, stemsReady, undefined, performanceMode);
+  const audio = useAudioPlayer(
+    fileHash,
+    initialGuideVolumeRef.current,
+    stemsReady,
+    undefined,
+    performanceMode,
+    stickyPredecode,
+  );
 
   useEffect(() => {
     if (!stemsReady) {

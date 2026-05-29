@@ -71,6 +71,7 @@ const DEFAULT_PLAYBACK_PERFORMANCE_MODE = false;
 const DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH = true;
 const DEFAULT_PLAYBACK_AUDIO_DECODE_MODE = "client_mp3";
 const DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED = true;
+const DEFAULT_PLAYBACK_STICKY_PREDECODE = false;
 const DEFAULT_AUTO_RESCAN_SECONDS = 0;
 const AUTO_RESCAN_SECONDS_MIN = 0;
 const AUTO_RESCAN_SECONDS_MAX = 3600;
@@ -304,6 +305,8 @@ export const SettingsDialog = () => {
       : DEFAULT_PLAYBACK_AUDIO_DECODE_MODE;
   const playbackWarmupCacheEnabled =
     config?.playback_warmup_cache_enabled ?? DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED;
+  const playbackStickyPredecode =
+    config?.playback_sticky_predecode ?? DEFAULT_PLAYBACK_STICKY_PREDECODE;
   const autoRescanSeconds = config?.auto_rescan_seconds ?? DEFAULT_AUTO_RESCAN_SECONDS;
   const autoAnalyzeNewContent =
     config?.auto_analyze_new_content ?? DEFAULT_AUTO_ANALYZE_NEW_CONTENT;
@@ -606,6 +609,26 @@ export const SettingsDialog = () => {
               </ButtonGroup>
             </Field>
             <Field>
+              <Label>Sticky Predecode Buffer</Label>
+              <FieldDescription>
+                Keep current + next decoded audio in memory for smoother transitions (uses more RAM)
+              </FieldDescription>
+              <ButtonGroup className="w-full flex-wrap [&>*]:flex-1">
+                <Button
+                  variant={playbackStickyPredecode ? "default" : "outline"}
+                  onClick={() => mutate({ playback_sticky_predecode: true })}
+                >
+                  On
+                </Button>
+                <Button
+                  variant={!playbackStickyPredecode ? "default" : "outline"}
+                  onClick={() => mutate({ playback_sticky_predecode: false })}
+                >
+                  Off
+                </Button>
+              </ButtonGroup>
+            </Field>
+            <Field>
               <Label>Auto Rescan Library</Label>
               <FieldDescription>
                 Automatically rescan your library every{" "}
@@ -813,6 +836,7 @@ export const SettingsDialog = () => {
                   playback_show_pitch_graph: DEFAULT_PLAYBACK_SHOW_PITCH_GRAPH,
                   playback_audio_decode_mode: DEFAULT_PLAYBACK_AUDIO_DECODE_MODE,
                   playback_warmup_cache_enabled: DEFAULT_PLAYBACK_WARMUP_CACHE_ENABLED,
+                  playback_sticky_predecode: DEFAULT_PLAYBACK_STICKY_PREDECODE,
                 })
               }
               className={generateRingClassName(footerSegment, 0)}
