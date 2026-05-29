@@ -12,7 +12,7 @@ import { useGuideControls } from "@/hooks/playback";
 import type { JukeboxQueueItem } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import { forwardRef, memo, useCallback, useEffect, useRef } from "react";
-import { isPixabayTheme, themeName } from "./background";
+import { isPixabayTheme, nextThemeIndex, themeName } from "./background";
 
 const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
 
@@ -140,13 +140,24 @@ interface PlaybackHudProps {
   artist: string;
   config: AppConfig | null;
   karaokeQueue?: JukeboxQueueItem[];
+  canPatchSessionSettings?: boolean;
+  onGuideVolumeChange?: (nextVolume: number) => void;
+  onThemeChange?: (nextTheme: number) => void;
 }
 
-function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackHudProps) {
+function PlaybackHudImpl({
+  title,
+  artist,
+  config,
+  karaokeQueue = [],
+  canPatchSessionSettings = false,
+  onGuideVolumeChange,
+  onThemeChange,
+}: PlaybackHudProps) {
   const { duration, guideVolume, paused } = usePlaybackTransportState();
   const { subscribe, getCurrentTime, handlePause, handleContinue, handleExit } =
     usePlaybackTransportActions();
-  const { themeIndex, videoFlavor } = usePlaybackThemeState();
+  const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
   const { cycleTheme, cycleFlavor } = usePlaybackThemeActions();
   const { firstSegmentStart, lastSegmentEnd, introSkipLeadSec, transcriptSource } =
     usePlaybackTranscriptState();
@@ -170,6 +181,38 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
     }
     handleExit();
   }, [handleExit]);
+
+  const handleToggleGuide = useCallback(() => {
+    const nextVolume = guideVolume > 0 ? 0 : 0.3;
+    toggleGuide();
+    if (canPatchSessionSettings) {
+      onGuideVolumeChange?.(nextVolume);
+    }
+  }, [canPatchSessionSettings, guideVolume, onGuideVolumeChange, toggleGuide]);
+
+  const handleIncreaseGuide = useCallback(() => {
+    const nextVolume = Math.min(1, guideVolume + 0.1);
+    increaseGuide();
+    if (canPatchSessionSettings) {
+      onGuideVolumeChange?.(nextVolume);
+    }
+  }, [canPatchSessionSettings, guideVolume, increaseGuide, onGuideVolumeChange]);
+
+  const handleDecreaseGuide = useCallback(() => {
+    const nextVolume = Math.max(0, guideVolume - 0.1);
+    decreaseGuide();
+    if (canPatchSessionSettings) {
+      onGuideVolumeChange?.(nextVolume);
+    }
+  }, [canPatchSessionSettings, decreaseGuide, guideVolume, onGuideVolumeChange]);
+
+  const handleCycleTheme = useCallback(() => {
+    const nextTheme = nextThemeIndex(themeIndex, Boolean(sourceVideoPath));
+    cycleTheme();
+    if (canPatchSessionSettings) {
+      onThemeChange?.(nextTheme);
+    }
+  }, [canPatchSessionSettings, cycleTheme, onThemeChange, sourceVideoPath, themeIndex]);
 
   const lastSecondRef = useRef(-1);
   const timerRef = useRef<HTMLParagraphElement>(null);
@@ -247,9 +290,9 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
             Score: {pitchScore ?? "--"}
           </div>
           <HintRow text={formatGuideText(guideVolume)}>
-            <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={toggleGuide} />
-            <KeyChip label="+" ariaLabel="Increase guide volume" onClick={increaseGuide} />
-            <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={decreaseGuide} />
+            <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
+            <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
+            <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
           </HintRow>
           <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
             <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
@@ -259,7 +302,7 @@ function PlaybackHudImpl({ title, artist, config, karaokeQueue = [] }: PlaybackH
             <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
           </HintRow>
           <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
-            <KeyChip label="T" ariaLabel="Cycle theme" onClick={cycleTheme} />
+            <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
             {isPixabayTheme(themeIndex) && (
               <KeyChip label="F" ariaLabel="Cycle video flavor" onClick={cycleFlavor} />
             )}

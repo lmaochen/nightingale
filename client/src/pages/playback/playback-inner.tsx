@@ -26,7 +26,7 @@ import { usePlaybackInput, usePlaybackResult } from "@/hooks/playback";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
 import type { Song } from "@/types/Song";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 export interface PlaybackInnerProps {
   song: Song;
@@ -46,9 +46,13 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
   const { segments } = usePlaybackTranscriptState();
   const { handleSkipIntro, handleSkipOutro } = usePlaybackTranscriptActions();
   const { series } = usePlaybackMicState();
-  const { snapshot } = useJukeboxSession({ autoJoinPersistedIntent: false });
+  const { snapshot, me, actions } = useJukeboxSession({ autoJoinPersistedIntent: false });
   const skipIntroSignalRef = useRef(0);
   const skipOutroSignalRef = useRef(0);
+  const canPatchSessionSettings = useMemo(() => {
+    if (!snapshot || !me) return false;
+    return snapshot.host === me.client_id || snapshot.allow_guest_controls;
+  }, [snapshot, me]);
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
@@ -78,6 +82,22 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
     if (snapshot.theme === themeIndex) return;
     setThemeIndex(snapshot.theme);
   }, [isReady, setThemeIndex, snapshot, themeIndex]);
+
+  const handleGuideVolumeChange = useCallback(
+    (nextVolume: number) => {
+      if (!canPatchSessionSettings) return;
+      actions.patchSettings({ guideVolume: nextVolume });
+    },
+    [actions, canPatchSessionSettings],
+  );
+
+  const handleThemeChange = useCallback(
+    (nextTheme: number) => {
+      if (!canPatchSessionSettings) return;
+      actions.patchSettings({ theme: nextTheme });
+    },
+    [actions, canPatchSessionSettings],
+  );
 
   useEffect(() => {
     if (!isReady || !snapshot) return;
@@ -110,6 +130,9 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
             artist={song.artist}
             config={config}
             karaokeQueue={snapshot?.queue ?? []}
+            canPatchSessionSettings={canPatchSessionSettings}
+            onGuideVolumeChange={handleGuideVolumeChange}
+            onThemeChange={handleThemeChange}
           />
           <PitchGraph series={series} />
           <LyricsDisplay

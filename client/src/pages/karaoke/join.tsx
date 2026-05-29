@@ -57,6 +57,15 @@ function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function artistInitial(value: string): string | null {
+  const initial = value.trim().charAt(0).toUpperCase();
+  return /^[A-Z]$/.test(initial) ? initial : null;
+}
+
+function artistAnchorId(initial: string): string {
+  return `join-artist-anchor-${initial}`;
+}
+
 function pendingKey(song: DowntifySong): string {
   if (typeof song.song_id === "string" && song.song_id.length > 0) return `song_id:${song.song_id}`;
   if (typeof song.url === "string" && song.url.length > 0) return `url:${song.url}`;
@@ -144,6 +153,23 @@ export function KaraokeJoinPage() {
         .slice(0, 120),
     [allArtists, artistNeedle],
   );
+  const artistInitials = useMemo(() => {
+    const initials = new Set<string>();
+    for (const artist of allArtists) {
+      const initial = artistInitial(artist);
+      if (initial) initials.add(initial);
+    }
+    return [...initials].sort();
+  }, [allArtists]);
+  const firstVisibleArtistByInitial = useMemo(() => {
+    const first = new Map<string, string>();
+    for (const artist of visibleArtists) {
+      const initial = artistInitial(artist);
+      if (!initial || first.has(initial)) continue;
+      first.set(initial, artist);
+    }
+    return first;
+  }, [visibleArtists]);
 
   const canControl = useMemo(() => {
     if (!snapshot || !me) return false;
@@ -392,23 +418,55 @@ export function KaraokeJoinPage() {
           {visibleArtists.length > 0 && (
             <div className="mt-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Browse artists</p>
+              {artistInitials.length > 0 && (
+                <div className="mb-2 flex items-center gap-1 overflow-x-auto pb-1">
+                  {artistInitials.map((initial) => {
+                    const firstVisibleArtist = firstVisibleArtistByInitial.get(initial);
+                    const enabled = Boolean(firstVisibleArtist);
+                    return (
+                      <Button
+                        key={initial}
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-6 min-w-6 px-1 text-[10px] tracking-wide"
+                        disabled={!enabled}
+                        onClick={() => {
+                          if (!firstVisibleArtist) return;
+                          document
+                            .getElementById(artistAnchorId(initial))
+                            ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        }}
+                      >
+                        {initial}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
               <div className="max-h-36 overflow-y-auto pr-1">
                 <div className="flex flex-wrap gap-2">
-                  {visibleArtists.map((artist) => (
-                    <Button
-                      key={artist}
-                      type="button"
-                      size="sm"
-                      variant={selectedArtist === artist ? "default" : "outline"}
-                      className="h-7 px-2 text-xs"
-                      onClick={() => {
-                        setSelectedArtist(artist);
-                        setResults([]);
-                      }}
-                    >
-                      {artist}
-                    </Button>
-                  ))}
+                  {visibleArtists.map((artist) => {
+                    const initial = artistInitial(artist);
+                    const shouldAnchor =
+                      initial != null && firstVisibleArtistByInitial.get(initial) === artist;
+                    return (
+                      <Button
+                        key={artist}
+                        id={shouldAnchor && initial ? artistAnchorId(initial) : undefined}
+                        type="button"
+                        size="sm"
+                        variant={selectedArtist === artist ? "default" : "outline"}
+                        className="h-7 px-2 text-xs"
+                        onClick={() => {
+                          setSelectedArtist(artist);
+                          setResults([]);
+                        }}
+                      >
+                        {artist}
+                      </Button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
