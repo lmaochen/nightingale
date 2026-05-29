@@ -37,6 +37,9 @@ export interface JukeboxSessionSnapshot {
   paused: boolean;
   position_ms: number;
   guide_volume: number;
+  host_decode_song_hash?: string | null;
+  host_decode_status?: string | null;
+  host_decode_error?: string | null;
   mic_monitoring: boolean;
   skip_intro_signal: number;
   skip_intro_target?: string | null;
@@ -226,6 +229,19 @@ export function useJukeboxSession(options?: UseJukeboxSessionOptions) {
           | "rescan-library",
       ) =>
         sendFrame({ type: "admin.action", action }),
+      reportHostDecodeStatus: (
+        payload: {
+          fileHash?: string | null;
+          status: "cold" | "warming" | "warm" | "failed";
+          error?: string | null;
+        },
+      ) =>
+        sendFrame({
+          type: "host.decode_status",
+          status: payload.status,
+          ...(payload.fileHash !== undefined ? { file_hash: payload.fileHash } : {}),
+          ...(payload.error !== undefined ? { error: payload.error } : {}),
+        }),
     }),
     [sendFrame],
   );

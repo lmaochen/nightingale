@@ -108,6 +108,9 @@ async fn run(state: AppState, socket: WebSocket) {
             }
             if s.host == Some(client_id) {
                 s.host = None;
+                s.host_decode_song_hash = None;
+                s.host_decode_status = None;
+                s.host_decode_error = None;
             }
         })
         .await;
@@ -173,6 +176,14 @@ enum ClientFrame {
         mic_monitoring: Option<bool>,
         #[serde(default)]
         allow_guest_controls: Option<bool>,
+    },
+    #[serde(rename = "host.decode_status")]
+    HostDecodeStatus {
+        #[serde(default)]
+        file_hash: Option<String>,
+        status: String,
+        #[serde(default)]
+        error: Option<String>,
     },
     #[serde(rename = "admin.action")]
     AdminAction { action: String },
@@ -382,6 +393,9 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                     }
                     if s.host == Some(client_id) {
                         s.host = None;
+                        s.host_decode_song_hash = None;
+                        s.host_decode_status = None;
+                        s.host_decode_error = None;
                     }
                 })
                 .await;
@@ -564,6 +578,40 @@ async fn handle_client_message(state: &AppState, client_id: ClientId, raw: &str)
                 config.guide_volume = Some(guide_volume.clamp(0.0, 1.0));
                 config.save();
             }
+            broadcast_jukebox(state, &next);
+        }
+        ClientFrame::HostDecodeStatus {
+            file_hash,
+            status,
+            error,
+        } => {
+            let next = state
+                .jukebox
+                .mutate(|s| {
+                    if !s.karaoke_enabled {
+                        return;
+                    }
+                    if s.host != Some(client_id) {
+                        return;
+                    }
+
+                    let normalized_status = status.trim().to_lowercase();
+                    if normalized_status.is_empty() {
+                        s.host_decode_song_hash = None;
+                        s.host_decode_status = None;
+                        s.host_decode_error = None;
+                        return;
+                    }
+
+                    s.host_decode_song_hash = file_hash
+                        .map(|v| v.trim().to_string())
+                        .filter(|v| !v.is_empty());
+                    s.host_decode_status = Some(normalized_status);
+                    s.host_decode_error = error
+                        .map(|v| v.trim().to_string())
+                        .filter(|v| !v.is_empty());
+                })
+                .await;
             broadcast_jukebox(state, &next);
         }
         ClientFrame::AdminAction { action } => {

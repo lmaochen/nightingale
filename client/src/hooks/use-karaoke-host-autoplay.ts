@@ -4,7 +4,7 @@ import { prewarmPlaybackAudio } from "@/hooks/use-audio-player";
 import { useJukeboxSession } from "@/hooks/use-jukebox-session";
 import type { Song } from "@/types/Song";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 const MAX_HOST_AUTOPLAY_SONGS = 5000;
@@ -71,6 +71,7 @@ export function useKaraokeHostAutoplay() {
   const launchingRef = useRef(false);
   const prewarmedHashesRef = useRef(new Set<string>());
   const prewarmingHashesRef = useRef(new Set<string>());
+  const lastReportedDecodeRef = useRef<string>("");
   const isHostDevice =
     typeof window !== "undefined" &&
     (() => {
@@ -104,14 +105,40 @@ export function useKaraokeHostAutoplay() {
 
   const songs = useMemo(() => songsData?.processed ?? [], [songsData?.processed]);
 
+  const reportDecodeStatus = useCallback(
+    (fileHash: string | null, status: "cold" | "warming" | "warm" | "failed", error?: string) => {
+      const key = `${fileHash ?? ""}|${status}|${error ?? ""}`;
+      if (lastReportedDecodeRef.current === key) return;
+      lastReportedDecodeRef.current = key;
+      actions.reportHostDecodeStatus({
+        fileHash,
+        status,
+        error: error ?? null,
+      });
+    },
+    [actions],
+  );
+
   useEffect(() => {
-    if (!snapshot || !isHostDevice || snapshot.queue.length === 0) return;
+    if (!snapshot || !isHostDevice) return;
+    if (snapshot.queue.length === 0) {
+      reportDecodeStatus(null, "cold");
+      return;
+    }
     const nextQueued = snapshot.queue[0];
     const nextSong = resolveQueuedSong(nextQueued, songs);
-    if (!nextSong) return;
+    if (!nextSong) {
+      reportDecodeStatus(null, "cold");
+      return;
+    }
 
     const hash = nextSong.file_hash;
     if (!hash || prewarmedHashesRef.current.has(hash) || prewarmingHashesRef.current.has(hash)) {
+      if (hash && prewarmedHashesRef.current.has(hash)) {
+        reportDecodeStatus(hash, "warm");
+      } else if (hash && prewarmingHashesRef.current.has(hash)) {
+        reportDecodeStatus(hash, "warming");
+      }
       return;
     }
 
@@ -125,16 +152,20 @@ export function useKaraokeHostAutoplay() {
 
     try {
       ensureMp3Stems(hash);
+      reportDecodeStatus(hash, "warming");
       const attemptPrewarm = (attempt: number) => {
         void prewarmPlaybackAudio(hash)
           .then(() => {
             prewarmingHashesRef.current.delete(hash);
             prewarmedHashesRef.current.add(hash);
+            reportDecodeStatus(hash, "warm");
           })
-          .catch(() => {
+          .catch((error) => {
             if (attempt >= 8) {
               // Give up for now and allow a future retry.
               prewarmingHashesRef.current.delete(hash);
+              const message = error instanceof Error ? error.message : String(error);
+              reportDecodeStatus(hash, "failed", message);
               return;
             }
             window.setTimeout(() => attemptPrewarm(attempt + 1), 1500);
@@ -148,8 +179,9 @@ export function useKaraokeHostAutoplay() {
       // Allow retry on transient failures.
       prewarmingHashesRef.current.delete(hash);
       prewarmedHashesRef.current.delete(hash);
+      reportDecodeStatus(hash, "failed", "stems-prep-failed");
     }
-  }, [isHostDevice, snapshot, songs]);
+  }, [isHostDevice, reportDecodeStatus, snapshot, songs]);
 
   useEffect(() => {
     if (!snapshot || !isHostDevice) return;
