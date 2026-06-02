@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMenuFocus } from "@/contexts/menu-focus-context";
 import { useAnalysis } from "@/hooks/use-analysis";
+import { useDialog } from "@/hooks/use-dialog";
 import { useSearch } from "@/hooks/use-search";
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,7 @@ export const Filters = () => {
 
   const { search, setSearch } = useSearch();
   const { enqueueAll } = useAnalysis();
+  const { setMode } = useDialog();
   const { focus, actionsRef } = useMenuFocus();
 
   useEffect(() => {
@@ -52,6 +54,14 @@ export const Filters = () => {
         )}
       >
         Analyze All
+      </Button>
+      <Button
+        tabIndex={-1}
+        variant="outline"
+        onClick={() => setMode("reanalyze-all")}
+        className="focus-visible:ring-0 focus-visible:border-transparent hover:ring-primary"
+      >
+        Re-analyze All
       </Button>
     </div>
   );

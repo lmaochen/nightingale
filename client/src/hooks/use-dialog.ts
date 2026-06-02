@@ -14,6 +14,7 @@ export type DialogMode =
   | "donate"
   | "jellyfin-connect"
   | "navidrome-connect"
+  | "reanalyze-all"
   | { mode: "language"; song: Song }
   | { mode: "edit-lyrics"; song: Song }
   | { mode: "clear-cache"; target: ClearCacheTarget }

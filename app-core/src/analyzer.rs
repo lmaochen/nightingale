@@ -430,6 +430,26 @@ pub fn enqueue_all(filters: &LibraryMenuFilters) {
     }
 }
 
+/// Re-analyze every song matching `filters`, regardless of whether it has
+/// already been analyzed. When `full` is true the entire song cache (including
+/// stems) is deleted and rebuilt; otherwise only the transcript/lyrics are
+/// regenerated and existing stems are reused. USDX songs are skipped. The work
+/// (cache deletion + enqueue) runs on a background thread so callers don't block
+/// while large libraries are cleared.
+pub fn reanalyze_all(filters: &LibraryMenuFilters, full: bool) {
+    let hashes =
+        library_db::iter_file_hashes_filtered_reanalyzable(filters).unwrap_or_default();
+
+    std::thread::spawn(move || {
+        for file_hash in hashes {
+            if is_usdx_song(&file_hash) {
+                continue;
+            }
+            reanalyze(&file_hash, full);
+        }
+    });
+}
+
 pub fn shutdown_server() {
     let pid = SERVER_PID.swap(0, Ordering::SeqCst);
     if pid != 0 {

@@ -290,6 +290,35 @@ pub fn iter_file_hashes_filtered_not_analyzed(
     }
 }
 
+/// File hashes for every song matching `filters` that can be (re)analyzed,
+/// i.e. all songs except USDX entries (which bypass the analyzer). Used by the
+/// batch "Re-analyze All" action, which redoes analysis regardless of the
+/// current `is_analyzed` flag.
+pub fn iter_file_hashes_filtered_reanalyzable(
+    filters: &LibraryMenuFilters,
+) -> rusqlite::Result<Vec<String>> {
+    let (where_sql, bind_strings) = build_song_where_clause(
+        None,
+        filters,
+        &["(s.transcript_source IS NULL OR s.transcript_source != 'usdx')"],
+    );
+
+    let where_sql = where_sql.expect("reanalyzable query always has at least one filter");
+    let sql = format!(
+        "SELECT s.file_hash FROM songs s
+         WHERE {where_sql}
+         ORDER BY s.artist COLLATE NOCASE, s.title COLLATE NOCASE"
+    );
+    with_conn(|c| {
+        let mut stmt = c.prepare(&sql)?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(bind_strings.iter().map(|s| s.as_str())),
+            |r| r.get(0),
+        )?;
+        rows.collect()
+    })
+}
+
 pub fn query_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {
     with_conn(|c| {
         let (

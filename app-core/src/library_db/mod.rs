@@ -35,8 +35,8 @@ pub use analysis_queue::{
 };
 pub use migrations::rewrite_legacy_jellyfin_paths;
 pub use queries::{
-    iter_file_hashes_filtered_not_analyzed, load_meta_sql, load_songs_page,
-    query_library_menu_items,
+    iter_file_hashes_filtered_not_analyzed, iter_file_hashes_filtered_reanalyzable, load_meta_sql,
+    load_songs_page, query_library_menu_items,
 };
 pub use rebase::rebase_song_album_art_paths;
 pub use songs::{

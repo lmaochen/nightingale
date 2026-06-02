@@ -226,6 +226,17 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
             app_core::enqueue_all(&args.filters);
             Ok(Value::Null)
         }
+        "reanalyze_all" => {
+            #[derive(Deserialize)]
+            struct Args {
+                filters: LibraryMenuFilters,
+                #[serde(default)]
+                full: bool,
+            }
+            let args: Args = deserialize(payload)?;
+            app_core::reanalyze_all(&args.filters, args.full);
+            Ok(Value::Null)
+        }
         "delete_song_cache" => {
             let args: FileHashArgs = deserialize(payload)?;
             app_core::delete_cache(&args.file_hash);

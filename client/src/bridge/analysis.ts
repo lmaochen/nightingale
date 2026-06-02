@@ -10,6 +10,13 @@ export const enqueueAll = async (filters: LibraryMenuFilters): Promise<void> => 
   return await invoke<void>("enqueue_all", { filters });
 };
 
+export const reanalyzeAll = async (
+  filters: LibraryMenuFilters,
+  full: boolean,
+): Promise<void> => {
+  return await invoke<void>("reanalyze_all", { filters, full });
+};
+
 export const deleteSongCache = async (fileHash: string): Promise<void> => {
   return await invoke<void>("delete_song_cache", { fileHash });
 };

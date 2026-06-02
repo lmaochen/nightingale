@@ -7,6 +7,7 @@ import { JellyfinConnectDialog } from "@/components/menu/dialogs/remote-source/j
 import { NavidromeConnectDialog } from "@/components/menu/dialogs/remote-source/navidrome-connect";
 import { SelectLanguageDialog } from "@/components/menu/dialogs/language";
 import { CreateProfileDialog } from "@/components/menu/dialogs/profile/create";
+import { ReanalyzeAllDialog } from "@/components/menu/dialogs/reanalyze-all";
 import { RequestSongDialog } from "@/components/menu/dialogs/request-song";
 import { SelectProfileDialog } from "@/components/menu/dialogs/profile/select";
 import { SettingsDialog } from "@/components/menu/dialogs/settings";
@@ -73,6 +74,7 @@ export const Menu = () => {
       <SelectLanguageDialog />
       <EditLyricsDialog />
       <ClearCacheDialog />
+      <ReanalyzeAllDialog />
       <JellyfinConnectDialog />
       <NavidromeConnectDialog />
       <SidebarInset className="overflow-y-auto overscroll-y-contain touch-pan-y">

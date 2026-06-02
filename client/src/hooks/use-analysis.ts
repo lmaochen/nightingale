@@ -5,6 +5,7 @@ import {
   enqueueAll,
   enqueueOne,
   realign,
+  reanalyzeAll,
   reanalyzeForceTranscribe,
   reanalyzeFull,
   reanalyzeTranscript,
@@ -45,6 +46,10 @@ export const useAnalysis = () => {
     return {
       enqueueOne: wrap(enqueueOne, invalidateQueue),
       enqueueAll: wrap(() => enqueueAll({ artist, album, query }), invalidateQueue),
+      reanalyzeAll: wrap(
+        (full: boolean) => reanalyzeAll({ artist, album, query }, full),
+        invalidateSongs,
+      ),
       deleteSongCache: wrap(deleteSongCache, invalidateSongs),
       reanalyzeTranscript: wrap(reanalyzeTranscript, invalidateSongs),
       reanalyzeFull: wrap(reanalyzeFull, invalidateSongs),
