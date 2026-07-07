@@ -7,7 +7,6 @@ export type DialogMode =
   | "exit"
   | "create-profile"
   | "select-profile"
-  | "settings"
   | "request-song"
   | "about"
   | "update"

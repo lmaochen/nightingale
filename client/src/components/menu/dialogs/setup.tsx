@@ -19,10 +19,14 @@ import logoSrc from "@/assets/images/logo_square.png";
 import { useShouldRunSetup } from "@/hooks/use-should-run-setup";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { selectFolderPath } from "@/bridge/source";
+import { getServerFlags } from "@/bridge/server-flags";
 import { useConfig } from "@/queries/use-config";
 import { ANALYSIS_QUEUE, CONFIG, MENU, SONGS, SONGS_META } from "@/queries/keys";
 import { useQueryClient } from "@tanstack/react-query";
+import type { CachePaths } from "@/types/CachePaths";
 
 interface ExtendedSetupProgress extends Omit<SetupProgress, "step"> {
   step: SetupStep | "init" | "error" | "changedatafolder";
@@ -56,15 +60,65 @@ const InitialStep = ({ toNextStep }: InitialStepProps) => {
   );
 };
 
+type CachePathKey = keyof CachePaths;
+
 type ChangeDataStepProps = {
   onStart: () => Promise<void>;
   folder?: string;
   setFolder: (folder?: string) => void;
+  separateCacheFolders: boolean;
+  setSeparateCacheFolders: (enabled: boolean) => void;
+  cacheFolders: CachePaths;
+  setCacheFolder: (key: CachePathKey, folder?: string) => void;
 };
 
-const ChangeDataFolderStep = ({ onStart, folder, setFolder }: ChangeDataStepProps) => (
+const cacheFolderLabels: Array<[CachePathKey, string, string]> = [
+  ["songs", "Songs cache", "Stems, lyrics, transcripts, covers"],
+  ["videos", "Video cache", "Downloaded and converted videos"],
+  ["models", "Models cache", "AI and ASR model files"],
+  ["vendor", "Vendor tools", "ffmpeg, uv, Python, virtualenv"],
+];
+
+const FolderPicker = ({
+  value,
+  onChange,
+  buttonLabel,
+}: {
+  value?: string | null;
+  onChange: (folder?: string) => void;
+  buttonLabel?: string;
+}) => (
+  <div className="grid w-full justify-self-stretch grid-cols-[minmax(0,1fr)_auto] gap-2">
+    <Input value={value ?? ""} disabled className="min-w-0 w-full" />
+    <Button
+      variant="outline"
+      className="w-fit whitespace-nowrap"
+      onClick={async () => {
+        const folder = await selectFolderPath();
+
+        if (!folder) {
+          return;
+        }
+
+        onChange(folder);
+      }}
+    >
+      {value ? "Change Folder" : (buttonLabel ?? "Choose Folder")}
+    </Button>
+  </div>
+);
+
+const ChangeDataFolderStep = ({
+  onStart,
+  folder,
+  setFolder,
+  separateCacheFolders,
+  setSeparateCacheFolders,
+  cacheFolders,
+  setCacheFolder,
+}: ChangeDataStepProps) => (
   <>
-    <AlertDialogHeader>
+    <AlertDialogHeader className="w-full place-items-stretch text-left">
       <AlertDialogTitle>Data Folder</AlertDialogTitle>
       <>
         <AlertDialogDescription className="mb-2">
@@ -72,23 +126,29 @@ const ChangeDataFolderStep = ({ onStart, folder, setFolder }: ChangeDataStepProp
           tools, and the library database in this folder. Only <code>config.json</code> and{" "}
           <code>nightingale.log</code> stay in the default <code>~/.nightingale</code> path.
         </AlertDialogDescription>
-        <div className="flex gap-2 w-full">
-          <Input value={folder ?? ""} disabled />
-          <Button
-            variant="outline"
-            onClick={async () => {
-              const folder = await selectFolderPath();
-
-              if (!folder) {
-                return;
-              }
-
-              setFolder(folder);
-            }}
-          >
-            {folder ? "Change Folder" : "Choose Folder"}
-          </Button>
-        </div>
+        {!separateCacheFolders && <FolderPicker value={folder} onChange={setFolder} />}
+        <Label className="mt-1 gap-1.5 text-xs/relaxed font-normal text-muted-foreground">
+          <Checkbox
+            checked={separateCacheFolders}
+            onCheckedChange={(checked) => setSeparateCacheFolders(checked === true)}
+          />
+          Use different folders per cache type
+        </Label>
+        {separateCacheFolders && (
+          <div className="mt-2 flex w-full flex-col gap-3">
+            {cacheFolderLabels.map(([key, label, description]) => (
+              <div key={key} className="flex w-full flex-col gap-1">
+                <div className="text-sm font-medium">{label}</div>
+                <div className="text-xs text-muted-foreground">{description}</div>
+                <FolderPicker
+                  value={cacheFolders[key]}
+                  onChange={(folder) => setCacheFolder(key, folder)}
+                  buttonLabel="Choose Folder"
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </>
     </AlertDialogHeader>
     <AlertDialogFooter>
@@ -143,15 +203,36 @@ const ErrorStep = ({ error }: ErrorStepProps) => (
 interface FinalStepProps {
   onFinish: () => void;
   folder?: string;
+  vendorFolder?: string | null;
 }
 
-const FinalStep = ({ onFinish, folder }: FinalStepProps) => (
+const defaultCachePaths = (base?: string | null): CachePaths => ({
+  songs: base ? `${base}/cache` : null,
+  videos: base ? `${base}/videos` : null,
+  models: base ? `${base}/models` : null,
+  vendor: base ? `${base}/vendor` : null,
+});
+
+const selectedCachePaths = (enabled: boolean, paths: CachePaths): CachePaths | undefined => {
+  if (!enabled) {
+    return undefined;
+  }
+
+  return {
+    songs: paths.songs?.trim() || null,
+    videos: paths.videos?.trim() || null,
+    models: paths.models?.trim() || null,
+    vendor: paths.vendor?.trim() || null,
+  };
+};
+
+const FinalStep = ({ onFinish, folder, vendorFolder }: FinalStepProps) => (
   <>
     <AlertDialogHeader>
       <AlertDialogTitle>You're all set!</AlertDialogTitle>
       <AlertDialogDescription>
-        All dependencies have been installed to <code>{folder}/vendor</code>. Nightingale is ready
-        to use.
+        All dependencies have been installed to <code>{vendorFolder ?? `${folder}/vendor`}</code>.
+        Nightingale is ready to use.
       </AlertDialogDescription>
     </AlertDialogHeader>
     <AlertDialogFooter>
@@ -171,7 +252,16 @@ export const Setup = () => {
   const { shouldRunSetup, setShouldRunSetup } = useShouldRunSetup();
   const queryClient = useQueryClient();
 
+  // In self-hosted deployments the operator fixes the data folder via
+  // NIGHTINGALE_DATA_PATH (e.g. the /data volume in Docker), so there's nothing
+  // for the browser user to choose — skip the data-folder step entirely.
+  const { dataPathPinned } = getServerFlags();
+
   const [overrideFolder, setOverrideFolder] = useState(config?.data_path);
+  const [separateCacheFolders, setSeparateCacheFolders] = useState(Boolean(config?.cache_paths));
+  const [cacheFolders, setCacheFolders] = useState<CachePaths>(
+    config?.cache_paths ?? defaultCachePaths(config?.data_path),
+  );
   const [setupProgress, setSetupProgress] = useState<ExtendedSetupProgress>(defaultProgress);
 
   useEffect(() => {
@@ -179,6 +269,40 @@ export const Setup = () => {
       setOverrideFolder(config.data_path);
     }
   }, [config?.data_path, overrideFolder]);
+
+  useEffect(() => {
+    if (!config) {
+      return;
+    }
+
+    if (config.cache_paths) {
+      setSeparateCacheFolders(true);
+      setCacheFolders(config.cache_paths);
+    } else if (config.data_path) {
+      setCacheFolders(defaultCachePaths(config.data_path));
+    }
+  }, [config]);
+
+  useEffect(() => {
+    if (!separateCacheFolders || config?.cache_paths) {
+      return;
+    }
+
+    setCacheFolders(defaultCachePaths(overrideFolder));
+  }, [config?.cache_paths, overrideFolder, separateCacheFolders]);
+
+  const setCacheFolder = useCallback((key: CachePathKey, folder?: string) => {
+    setCacheFolders((current) => ({ ...current, [key]: folder ?? null }));
+  }, []);
+
+  const startSetup = useCallback(
+    () =>
+      triggerSetup(
+        dataPathPinned ? undefined : (overrideFolder ?? undefined),
+        dataPathPinned ? undefined : selectedCachePaths(separateCacheFolders, cacheFolders),
+      ),
+    [cacheFolders, dataPathPinned, overrideFolder, separateCacheFolders],
+  );
 
   const invalidatePostSetupState = useCallback(async () => {
     await Promise.all([
@@ -236,7 +360,7 @@ export const Setup = () => {
 
         if (navAction.confirm) {
           if (step === "init") {
-            triggerSetup(overrideFolder ?? undefined);
+            startSetup();
           } else if (step === "finish") {
             void invalidatePostSetupState();
             setShouldRunSetup(false);
@@ -245,7 +369,7 @@ export const Setup = () => {
           }
         }
       },
-      [invalidatePostSetupState, overrideFolder, setShouldRunSetup, shouldRunSetup, step],
+      [invalidatePostSetupState, setShouldRunSetup, shouldRunSetup, startSetup, step],
     ),
   );
 
@@ -254,7 +378,11 @@ export const Setup = () => {
       case "init":
         return () => (
           <InitialStep
-            toNextStep={() => setSetupProgress({ ...setupProgress, step: "changedatafolder" })}
+            toNextStep={() =>
+              dataPathPinned
+                ? startSetup()
+                : setSetupProgress({ ...setupProgress, step: "changedatafolder" })
+            }
           />
         );
       case "changedatafolder":
@@ -262,7 +390,11 @@ export const Setup = () => {
           <ChangeDataFolderStep
             folder={overrideFolder ?? undefined}
             setFolder={setOverrideFolder}
-            onStart={() => triggerSetup(overrideFolder ?? undefined)}
+            separateCacheFolders={separateCacheFolders}
+            setSeparateCacheFolders={setSeparateCacheFolders}
+            cacheFolders={cacheFolders}
+            setCacheFolder={setCacheFolder}
+            onStart={startSetup}
           />
         );
       case "clearvendor":
@@ -279,6 +411,7 @@ export const Setup = () => {
         return () => (
           <FinalStep
             folder={overrideFolder ?? undefined}
+            vendorFolder={separateCacheFolders ? cacheFolders.vendor : undefined}
             onFinish={() => {
               void invalidatePostSetupState();
               setSetupProgress(defaultProgress);
@@ -289,7 +422,19 @@ export const Setup = () => {
       case "error":
         return () => <ErrorStep error={action} />;
     }
-  }, [step, action, percent, overrideFolder, invalidatePostSetupState, setShouldRunSetup]);
+  }, [
+    step,
+    action,
+    percent,
+    overrideFolder,
+    separateCacheFolders,
+    cacheFolders,
+    setCacheFolder,
+    startSetup,
+    dataPathPinned,
+    invalidatePostSetupState,
+    setShouldRunSetup,
+  ]);
 
   return (
     <AlertDialog open={shouldRunSetup}>

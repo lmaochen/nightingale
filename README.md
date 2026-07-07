@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/rzru/nightingale/actions/workflows/release.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/rzru/nightingale/release.yml?style=flat-square&label=build"></a>
+  <a href="https://hub.docker.com/r/razzaru/nightingale"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/razzaru/nightingale?style=flat-square&logo=docker&logoColor=white&label=docker%20pulls"></a>
   <a href="https://github.com/rzru/nightingale/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/rzru/nightingale?style=flat-square"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue?style=flat-square"></a>
   <a href="https://www.patreon.com/cw/nightingalekaraoke"><img alt="Patreon" src="https://img.shields.io/badge/Patreon-Support-FF424D?style=flat-square&logo=patreon&logoColor=white"></a>
@@ -30,11 +31,11 @@ Ships as a single binary. No manual installation of Python, ffmpeg, or ML models
 
 💿 **Navidrome** — connect to Navidrome for audio libraries. Login details are kept encrypted on disk.
 
-🌐 **Self-hosted web mode** — run Nightingale on a Linux box on your home network and open it from phones, laptops, tablets, and TVs at `<hostname>.local`. See [docs/self-hosted](site/docs/src/self-hosted.md).
+🌐 **Self-hosted web mode** — run Nightingale on a Linux box on your home network and open it from phones, laptops, tablets, and TVs at `<hostname>.local`. See [docs/self-hosted](site/docs/src/self-hosted.md). Also runs in [Docker](site/docs/src/docker.md) (CPU or CUDA/GPU).
 
-🧭 **Sidebar + library filters** — browse by quick filters, metadata cleanup buckets, artists, and albums. **Analyze All** helps queue your library faster, and the sidebar/song list remember scroll position when you come back.
+🧭 **Sidebar + library filters** — browse by quick filters, metadata cleanup buckets, artists, and albums. **Analyze All** and optional auto-analysis help queue your library faster, and the sidebar/song list remember scroll position when you come back.
 
-🗂️ **Flexible data folder** — choose where Nightingale stores cache, models, videos, and library data during setup.
+🗂️ **Flexible storage** — choose the main data folder during setup, then split cache, models, videos, and vendor tools into separate folders from Settings when needed.
 
 📦 **Self-contained** — ffmpeg, uv, Python, PyTorch, and ML packages are downloaded automatically during setup. Video backgrounds are pre-downloaded so the first session is ready to go.
 
@@ -46,9 +47,11 @@ Ships as a single binary. No manual installation of Python, ffmpeg, or ML models
 
 ✏️ **Lyrics editor with LRCLIB browser** — edit analyzed non-USDX lyrics from a song's Actions button. When LRCLIB has multiple matches, browse them and apply one with a click; saving re-runs alignment.
 
-🈯 **CJK lyric support** — Japanese, Chinese, and Korean songs get per-character forced alignment and romanized readings (Hepburn / pinyin / Revised Romanization) shown above each token.
+🈯 **CJK lyric support** — Japanese, Chinese, Cantonese, and Korean songs get per-character forced alignment and romanized readings (Hepburn / pinyin / Jyutping / Revised Romanization) shown above each token.
 
 🗣️ **Pluggable ASR engines** — choose Whisper (default, broad language coverage) or **Parakeet v3 (experimental)** for ~25 European languages, with NeMo on CUDA and ONNX Runtime everywhere else.
+
+⚡ **Pluggable forced alignment** — keep WhisperX's aligner (default) or switch on an experimental backend: **GPU forced alignment** (torchaudio `forced_align`) for faster word timestamps on CUDA and Apple Silicon, or the **Qwen aligner** (Qwen3-ForcedAligner-0.6B) which timestamps 11 languages incl. CJK in a single pass on CUDA/MPS/CPU. Both fall back to WhisperX automatically.
 
 🎼 **UltraStar Deluxe songs (experimental)** — drop USDX song folders (`.txt` or `.usdx` plus sibling audio/vocals/instrumental/video) into your library; pitch and lyric data come from the file directly, no analyzer pass needed. See [docs/usdx](site/docs/src/usdx.md).
 
@@ -62,7 +65,7 @@ Ships as a single binary. No manual installation of Python, ffmpeg, or ML models
 
 🌌 **Audio-reactive backgrounds** — 10 GPU shaders that react to your microphone in real time (Plasma, Waves, Nebula, Starfield, Sonar, Voronoi, Vortex, Metaballs, Spectrum, Oscilloscope), Pixabay video loops in 5 flavors (Nature, Underwater, Space, City, Countryside), plus source-video playback for video files.
 
-🎙️ **Mic monitoring** — optionally route your live mic into playback for low-latency practice and monitoring, with an adjustable monitor gain (0–200%) in Settings.
+🎙️ **Mic monitoring + latency test** — optionally route your live mic into playback, adjust monitor gain (0–200%), and run a beep-based latency test from Settings so scoring lines up with your room.
 
 ### Quality of life
 
@@ -70,7 +73,7 @@ Ships as a single binary. No manual installation of Python, ffmpeg, or ML models
 
 🎮 **Gamepad support** — full navigation and control via gamepad (D-pad, sticks, face buttons).
 
-📺 **Adaptive UI scaling** — scales to any resolution including 4K TVs.
+📺 **Adaptive + touch-friendly UI** — scales from phones/tablets to 4K TVs, with on-screen playback controls on touch devices.
 
 ⬆️ **In-app updates** — on macOS and Windows, auto-checks for new releases at launch, badges the sidebar avatar when one is available, and downloads and installs signed updates with one click. Linux is manual: the **Update** entry opens GitHub Releases for you to grab the new build.
 

@@ -1,7 +1,8 @@
 import { usePlaybackTransportActions, usePlaybackTransportState } from "@/contexts/playback";
-import type { LyricsPosition } from "@/types/LyricsPosition";
+import { cn } from "@/lib/utils";
+import type { AppConfig } from "@/types/AppConfig";
 import type { Segment, Word } from "@/types/Transcript";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 
 // Timing offsets: lyrics/words appear slightly before their actual start
 // so the visual transition feels in sync with the audio.
@@ -13,13 +14,6 @@ const COUNTDOWN_GAP_THRESHOLD = 3.5;
 
 // Grace period after a segment ends before it disappears
 const SEGMENT_LINGER = 0.5;
-
-// Vertical anchoring for the lyrics block, keyed by the user's config choice.
-const POSITION_CLASS: Record<LyricsPosition, string> = {
-  top: "justify-start pt-[60px]",
-  center: "justify-center",
-  bottom: "justify-end pb-[60px]",
-};
 
 const FONT_SCALE_MIN = 0.5;
 const FONT_SCALE_MAX = 2;
@@ -75,6 +69,19 @@ function findCurrentSegment(segments: Segment[], time: number, hint: number): nu
 
   for (let i = start; i < segments.length; i++) {
     if (time >= segments[i].end + SEGMENT_LINGER) {
+      const next = i + 1;
+
+      // Through a short pause, keep the finished line current until the next
+      // line's lead-in begins, so the switch happens when the new line starts
+      // rather than when the old one ends.
+      if (
+        next < segments.length &&
+        segments[next].start - segments[i].end < COUNTDOWN_GAP_THRESHOLD &&
+        time < segments[next].start - LYRICS_LEAD
+      ) {
+        return i;
+      }
+
       continue;
     }
 
@@ -163,22 +170,56 @@ function WordToken({ word, hasReading, isLast, readingClass, refSetter, style }:
   );
 }
 
-const lineClass = (hasReading: boolean, base: string, gap: string) =>
-  hasReading ? `flex flex-wrap items-end justify-center ${gap} ${base}` : `text-center ${base}`;
+type LyricsVerticalPosition = NonNullable<AppConfig["lyrics_vertical_position"]>;
+
+type LyricsHorizontalPosition = NonNullable<AppConfig["lyrics_horizontal_position"]>;
+
+const verticalClass: Record<LyricsVerticalPosition, string> = {
+  bottom: "top-[8rem] bottom-[calc(2rem+env(safe-area-inset-bottom))] justify-end sm:bottom-[60px]",
+  center: "inset-y-[6rem] justify-center",
+  top: "top-[calc(2rem+env(safe-area-inset-top))] bottom-[8rem] justify-start overflow-visible sm:top-[60px]",
+};
+
+const horizontalItemsClass: Record<LyricsHorizontalPosition, string> = {
+  left: "items-start",
+  center: "items-center",
+  right: "items-end",
+};
+
+const horizontalTextClass: Record<LyricsHorizontalPosition, string> = {
+  left: "text-left justify-start",
+  center: "text-center justify-center",
+  right: "text-right justify-end",
+};
+
+const COUNTDOWN_CLASS =
+  "absolute -top-12 left-2 z-10 flex size-10 items-center justify-center rounded-full bg-black/40 text-[1rem] font-bold text-white sm:-left-9 sm:-top-9";
+
+const lineClass = (
+  hasReading: boolean,
+  base: string,
+  gap: string,
+  horizontalPosition: LyricsHorizontalPosition,
+) =>
+  hasReading
+    ? `flex flex-wrap items-end ${horizontalTextClass[horizontalPosition]} ${gap} ${base}`
+    : `${horizontalTextClass[horizontalPosition]} ${base}`;
 
 // --- Component ---
 
 interface LyricsDisplayProps {
   segments: Segment[];
-  position: LyricsPosition;
-  fontScale: number;
+  verticalPosition?: LyricsVerticalPosition | null;
+  horizontalPosition?: LyricsHorizontalPosition | null;
+  fontScale?: number;
   performanceMode?: boolean;
 }
 
 function LyricsDisplayImpl({
   segments,
-  position,
-  fontScale,
+  verticalPosition = "bottom",
+  horizontalPosition = "center",
+  fontScale = 1,
   performanceMode = false,
 }: LyricsDisplayProps) {
   const { isPlaying, paused } = usePlaybackTransportState();
@@ -217,7 +258,13 @@ function LyricsDisplayImpl({
       const showCountdown =
         gapBefore >= COUNTDOWN_GAP_THRESHOLD && timeUntil > 0 && timeUntil <= COUNTDOWN_DURATION;
 
-      const showCurrent = isActive || showCountdown;
+      // After a line ends, keep it on screen through a short pause until the
+      // next line starts (findCurrentSegment holds idx on the finished line).
+      const nextStart = idx + 1 < segments.length ? segments[idx + 1].start : Infinity;
+      const bridgeShortGap =
+        time > seg.end + SEGMENT_LINGER && nextStart - seg.end < COUNTDOWN_GAP_THRESHOLD;
+
+      const showCurrent = isActive || showCountdown || bridgeShortGap;
       const hasNext = idx + 1 < segments.length;
 
       if (containerRef.current) containerRef.current.style.display = showCurrent ? "" : "none";
@@ -225,7 +272,9 @@ function LyricsDisplayImpl({
         nextContainerRef.current.style.display = showCurrent && hasNext ? "" : "none";
 
       updateCountdown(countdownRef.current, showCountdown, timeUntil);
-      updateWordSpans(wordRefs.current, seg.words, time, isActive);
+      // Bridged finished lines are past every word's end, so treating them as
+      // active keeps the already-sung colors instead of dropping to unsung.
+      updateWordSpans(wordRefs.current, seg.words, time, isActive || bridgeShortGap);
     };
 
     if (animate) {
@@ -252,7 +301,10 @@ function LyricsDisplayImpl({
   if (segments.length === 0) {
     return (
       <div
-        className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center px-10 ${POSITION_CLASS[position]}`}
+        className={cn(
+          "pointer-events-none absolute inset-x-0 z-10 flex flex-col items-center px-3 sm:px-10",
+          verticalClass[verticalPosition ?? "bottom"],
+        )}
       >
         <p className="rounded-md bg-black/35 px-3 py-1 text-sm text-white/55">Loading lyrics...</p>
       </div>
@@ -267,31 +319,36 @@ function LyricsDisplayImpl({
   const segHasReading = seg.words.some((w) => w.reading);
   const nextHasReading = nextSeg?.words.some((w) => w.reading) ?? false;
 
-  // Base font size drives the `em`-sized lyric text below, so a single
-  // multiplier scales the whole block (current line, next line, and readings).
-  const baseFontSize = `${Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, fontScale))}rem`;
+  const vertical = verticalPosition ?? "bottom";
+  const horizontal = horizontalPosition ?? "center";
+
+  // A single multiplier scales the whole block (current line, next line, and
+  // readings): each text size below multiplies its responsive clamp() by this
+  // CSS variable.
+  const lyricsScale = Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, fontScale));
 
   return (
     <div
-      className={`pointer-events-none absolute inset-0 z-10 flex flex-col items-center gap-2 px-10 ${POSITION_CLASS[position]}`}
-      style={{ fontSize: baseFontSize }}
+      className={cn(
+        "pointer-events-none absolute inset-x-0 z-10 flex flex-col gap-2 overflow-hidden px-3 sm:px-10",
+        verticalClass[vertical],
+        horizontalItemsClass[horizontal],
+      )}
+      style={{ "--lyrics-scale": lyricsScale } as CSSProperties}
     >
       <div
         ref={containerRef}
-        className="relative max-w-full rounded-lg bg-black/40 px-5 py-2.5"
+        className="relative max-w-full rounded-lg bg-black/40 px-3 py-2 sm:px-5 sm:py-2.5"
         style={{ display: "none" }}
       >
-        <span
-          ref={countdownRef}
-          className="absolute -left-9 -top-9 z-10 flex size-10 items-center justify-center rounded-full bg-black/40 text-[1rem] font-bold text-white"
-          style={{ display: "none" }}
-        />
+        <span ref={countdownRef} className={COUNTDOWN_CLASS} style={{ display: "none" }} />
         {seg.words.length > 0 && (
           <p
             className={lineClass(
               segHasReading,
-              "text-[2.5em] leading-tight font-bold",
+              "text-[calc(clamp(1.35rem,7svh,2.5rem)*var(--lyrics-scale,1))] leading-tight font-bold",
               "gap-x-3 gap-y-1",
+              horizontal,
             )}
           >
             {seg.words.map((word, wi) => (
@@ -300,7 +357,7 @@ function LyricsDisplayImpl({
                 word={word}
                 hasReading={segHasReading}
                 isLast={wi === seg.words.length - 1}
-                readingClass="text-[1em]"
+                readingClass="text-[calc(clamp(0.65rem,3svh,1rem)*var(--lyrics-scale,1))]"
                 refSetter={(el) => {
                   wordRefs.current[wi] = el;
                 }}
@@ -314,14 +371,15 @@ function LyricsDisplayImpl({
       {nextSeg && (
         <div
           ref={nextContainerRef}
-          className="max-w-full rounded-md bg-black/25 px-4 py-1.5"
+          className="max-w-full rounded-md bg-black/25 px-3 py-1.5 sm:px-4"
           style={{ display: "none" }}
         >
           <p
             className={lineClass(
               nextHasReading,
-              "text-[1.5em] leading-tight",
+              "text-[calc(clamp(0.9rem,4.5svh,1.5rem)*var(--lyrics-scale,1))] leading-tight",
               "gap-x-2 gap-y-0.5",
+              horizontal,
             )}
           >
             {nextSeg.words.map((word, wi) => (
@@ -330,7 +388,7 @@ function LyricsDisplayImpl({
                 word={word}
                 hasReading={nextHasReading}
                 isLast={wi === nextSeg.words.length - 1}
-                readingClass="text-[0.7em]"
+                readingClass="text-[calc(clamp(0.55rem,2.25svh,0.7rem)*var(--lyrics-scale,1))]"
                 style={nextLineStyle(word)}
               />
             ))}

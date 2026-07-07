@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::cache::config_path;
+use crate::cache::{CachePaths, config_path};
 use crate::secret;
 
 /// Where the user wants Nightingale to source songs from. Persisted in
@@ -91,6 +91,8 @@ pub enum LyricsPosition {
 pub struct AppConfig {
     #[serde(default = "default_data_path_option")]
     pub data_path: Option<PathBuf>,
+    #[serde(default)]
+    pub cache_paths: Option<CachePaths>,
     /// Deprecated. Kept for one-shot migration into `library_source`; never
     /// written by code that has been through `with_defaults`.
     pub last_folder: Option<PathBuf>,
@@ -108,13 +110,19 @@ pub struct AppConfig {
     pub mic_monitoring: Option<bool>,
     #[serde(alias = "mic_mirror_gain")]
     pub mic_monitor_gain: Option<f64>,
+    pub mic_latency_compensation_sec: Option<f64>,
     pub preferred_mic: Option<String>,
     pub whisper_model: Option<String>,
     pub beam_size: Option<u32>,
     pub batch_size: Option<u32>,
     pub last_video_flavor: Option<usize>,
+    pub lyrics_vertical_position: Option<String>,
+    pub lyrics_horizontal_position: Option<String>,
     pub separator: Option<String>,
     pub asr_engine: Option<String>,
+    pub align_backend: Option<String>,
+    pub vocal_detection_threshold_pct: Option<f64>,
+    pub auto_analyze: Option<bool>,
     pub language_overrides: Option<HashMap<String, String>>,
     /// Enables host/guest karaoke session mode in the web UI.
     pub karaoke_enabled: Option<bool>,
@@ -161,6 +169,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             data_path: default_data_path_option(),
+            cache_paths: None,
             last_folder: None,
             library_source: None,
             last_theme: None,
@@ -170,13 +179,19 @@ impl Default for AppConfig {
             mic_active: None,
             mic_monitoring: None,
             mic_monitor_gain: None,
+            mic_latency_compensation_sec: None,
             preferred_mic: None,
             whisper_model: None,
             beam_size: None,
             batch_size: None,
             last_video_flavor: None,
+            lyrics_vertical_position: None,
+            lyrics_horizontal_position: None,
             separator: None,
             asr_engine: None,
+            align_backend: None,
+            vocal_detection_threshold_pct: None,
+            auto_analyze: None,
             language_overrides: None,
             karaoke_enabled: None,
             karaoke_pin: None,
@@ -337,11 +352,32 @@ impl AppConfig {
         self.asr_engine.as_deref().unwrap_or("whisper")
     }
 
+    pub fn align_backend(&self) -> &str {
+        self.align_backend.as_deref().unwrap_or("whisperx")
+    }
+
+    pub fn vocal_detection_threshold_pct(&self) -> f64 {
+        self.vocal_detection_threshold_pct
+            .unwrap_or(0.15)
+            .clamp(0.0, 1.0)
+    }
+
+    pub fn auto_analyze(&self) -> bool {
+        self.auto_analyze.unwrap_or(false)
+    }
+
     pub fn mic_monitor_gain(&self) -> f32 {
         self.mic_monitor_gain
             .map(|v| v as f32)
             .unwrap_or(0.65)
             .clamp(0.0, 2.0)
+    }
+
+    pub fn mic_latency_compensation_sec(&self) -> f32 {
+        self.mic_latency_compensation_sec
+            .map(|v| v as f32)
+            .unwrap_or(0.08)
+            .clamp(0.0, 0.5)
     }
 
     pub fn language_override(&self, file_hash: &str) -> Option<&str> {

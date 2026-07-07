@@ -11,10 +11,11 @@ use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
 use crate::{
+    analyzer,
     cache::CacheDir,
     config::AppConfig,
     library_db,
-    library_model::{LoadSongsParams, SongsMeta, SongsStore},
+    library_model::{LibraryMenuFilters, LoadSongsParams, SongsMeta, SongsStore},
     analyzer::enqueue_one,
     source::{ScanContext, active_source_from_config},
 };
@@ -96,6 +97,10 @@ pub fn start_scan() {
         }
 
         let config = AppConfig::load();
+        if config.auto_analyze() {
+            analyzer::enqueue_all(&LibraryMenuFilters::default());
+        }
+
         if !config.auto_analyze_new_content() {
             return;
         }

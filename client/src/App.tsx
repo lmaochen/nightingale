@@ -5,14 +5,14 @@ import { Toaster } from "./components/ui/sonner";
 import { TauriAppShell } from "./components/window/title-bar";
 import { NavInputProvider } from "./contexts/nav-input-context";
 import { MenuFocusProvider } from "./contexts/menu-focus-context";
-import { Menu } from "./pages/menu/menu";
+import { MenuIndex, MenuLayout } from "./pages/menu/menu";
+import { SettingsPage } from "./pages/menu/settings";
 import { Playback } from "./pages/playback/playback";
 import { KaraokeHostPage } from "./pages/karaoke/host";
 import { KaraokeJoinPage } from "./pages/karaoke/join";
 import { ThemeProvider } from "./contexts/theme-context";
 import { useConfig } from "./queries/use-config";
 import { useUpdate } from "./queries/use-update";
-import { Setup } from "./components/menu/dialogs/setup";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { UPDATES_SUPPORTED } from "./bridge/platform";
 import { useDowntifyQueueSync } from "./hooks/use-downtify-queue-sync";
@@ -45,7 +45,10 @@ const InnerWrapper = () => (
       <BrowserRouter>
         <KaraokeHostAutoplay />
         <Routes>
-          <Route path="/" element={<Menu />} />
+          <Route path="/" element={<MenuLayout />}>
+            <Route index element={<MenuIndex />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
           <Route path="/playback" element={<Playback />} />
           <Route path="/host" element={<KaraokeHostPage />} />
           <Route path="/join" element={<KaraokeJoinPage />} />
@@ -53,7 +56,6 @@ const InnerWrapper = () => (
       </BrowserRouter>
     </MenuFocusProvider>
     <Toaster />
-    <Setup />
     {UPDATES_SUPPORTED && <UpdateAutoCheck />}
   </>
 );

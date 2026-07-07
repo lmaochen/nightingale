@@ -14,11 +14,30 @@ import { useDialog } from "@/hooks/use-dialog";
 import { useLibrarySourceActions } from "@/hooks/use-library-source-actions";
 
 export const EmptySongList = () => {
-  const { selectFolder, isPending } = useLibrarySourceActions();
+  const { selectFolder, isPending, libraryPinned } = useLibrarySourceActions();
   const { setMode } = useDialog();
 
+  // Pinned library: nothing to pick in-app. An empty list here means the
+  // configured folder is still scanning or has no supported files.
+  if (libraryPinned) {
+    return (
+      <Empty className="px-4 pt-16 md:pt-6">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <MusicIcon />
+          </EmptyMedia>
+          <EmptyTitle>No songs found</EmptyTitle>
+          <EmptyDescription>
+            The configured music folder is empty or still being scanned. Add supported files to it,
+            then rescan from the sidebar.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
   return (
-    <Empty>
+    <Empty className="px-4 pt-16 md:pt-6">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <MusicIcon />
@@ -29,7 +48,7 @@ export const EmptySongList = () => {
           your karaoke!
         </EmptyDescription>
       </EmptyHeader>
-      <EmptyContent className="flex-row justify-center gap-2">
+      <EmptyContent className="max-w-md flex-col justify-center gap-2 sm:flex-row sm:flex-wrap">
         <Button variant="outline" onClick={() => setMode("navidrome-connect")} disabled={isPending}>
           <Disc3Icon /> Connect Navidrome
         </Button>

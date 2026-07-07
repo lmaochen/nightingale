@@ -87,7 +87,7 @@ function HintRow({ text, children }: { text: string; children?: React.ReactNode 
   );
 }
 
-const FOOTER_NOTE_CLASS = `pointer-events-none absolute bottom-2 z-20 text-[0.6rem] text-white/30`;
+const NOTE_BASE_CLASS = `pointer-events-none absolute z-20 text-[0.6rem] text-white/30`;
 
 function VenueTicker({
   nowPlaying,
@@ -108,7 +108,10 @@ function VenueTicker({
             <p className="text-[0.65rem] uppercase tracking-[0.16em] text-white/55">Up Next</p>
             <p className="truncate text-xs text-white/75">
               {upcomingQueue
-                .map((item, index) => `${index + 1}. ${item.title} (${item.requested_by_display_name})`)
+                .map(
+                  (item, index) =>
+                    `${index + 1}. ${item.title} (${item.requested_by_display_name})`,
+                )
                 .join("   •   ")}
             </p>
           </div>
@@ -118,7 +121,9 @@ function VenueTicker({
   );
 }
 
-function Disclaimer({ source }: { source: string }) {
+type PlaybackHudPosition = "top" | "bottom";
+
+function Disclaimer({ source, position }: { source: string; position: PlaybackHudPosition }) {
   if (source === "usdx") {
     return null;
   }
@@ -129,16 +134,23 @@ function Disclaimer({ source }: { source: string }) {
       : "Lyrics and timing are AI-generated and may not be perfectly accurate";
 
   return (
-    <p className={`${FOOTER_NOTE_CLASS} left-1/2 -translate-x-1/2 whitespace-nowrap text-center`}>
+    <p
+      className={`${NOTE_BASE_CLASS} ${notePositionClass(position)} left-1/2 -translate-x-1/2 whitespace-nowrap text-center`}
+    >
       {text}
     </p>
   );
+}
+
+function notePositionClass(hudPosition: PlaybackHudPosition): string {
+  return hudPosition === "bottom" ? "top-2" : "bottom-2";
 }
 
 interface PlaybackHudProps {
   title: string;
   artist: string;
   config: AppConfig | null;
+  position?: PlaybackHudPosition;
   liteMode?: boolean;
   karaokeQueue?: JukeboxQueueItem[];
   canPatchSessionSettings?: boolean;
@@ -150,6 +162,7 @@ function PlaybackHudImpl({
   title,
   artist,
   config,
+  position = "top",
   liteMode = false,
   karaokeQueue = [],
   canPatchSessionSettings = false,
@@ -249,18 +262,41 @@ function PlaybackHudImpl({
         skipOutroRef.current.style.display = hasSegments && time > lastSegmentEnd + 1 ? "" : "none";
       }
     });
-  }, [subscribe, getCurrentTime, duration, hasSegments, firstSegmentStart, introSkipLeadSec, lastSegmentEnd]);
+  }, [
+    subscribe,
+    getCurrentTime,
+    duration,
+    hasSegments,
+    firstSegmentStart,
+    introSkipLeadSec,
+    lastSegmentEnd,
+  ]);
+
+  const hudPositionClass =
+    position === "bottom"
+      ? "bottom-[calc(2rem+env(safe-area-inset-bottom))] items-end md:bottom-3"
+      : "top-[4.25rem] items-start md:top-3";
+  const hudFlowClass = position === "bottom" ? "flex-col-reverse" : "flex-col";
+  const skipButtonsClass = position === "bottom" ? "mb-2" : "mt-2";
 
   return (
     <>
-      <div className="pointer-events-auto absolute inset-x-0 top-3 z-20 flex justify-between px-4">
-        <div className="max-w-[40%] overflow-hidden">
-          <h1 className="truncate text-[1.375rem] text-white">{title}</h1>
-          <p className="truncate text-base text-white/70">{artist}</p>
-          <p ref={timerRef} className="text-base text-white/70">
+      <div
+        className={`pointer-events-auto absolute inset-x-0 z-20 flex justify-between gap-3 px-3 md:px-4 ${hudPositionClass}`}
+      >
+        <div
+          className={`flex min-w-0 max-w-[58%] overflow-hidden sm:max-w-[34%] lg:max-w-[40%] ${hudFlowClass}`}
+        >
+          <h1 className="line-clamp-2 [overflow-wrap:anywhere] text-base leading-tight text-white md:text-[1.375rem]">
+            {title}
+          </h1>
+          <p className="line-clamp-1 [overflow-wrap:anywhere] text-sm text-white/70 md:text-base">
+            {artist}
+          </p>
+          <p ref={timerRef} className="text-sm text-white/70 md:text-base">
             0:00 / {formatTime(duration)}
           </p>
-          <div className="mt-2 flex gap-2">
+          <div className={`flex gap-2 ${skipButtonsClass}`}>
             <SkipButton ref={skipIntroRef} label="Skip Intro" onClick={handleSkipIntro} />
             <SkipButton ref={skipOutroRef} label="Skip Outro" onClick={handleSkipOutro} />
           </div>
@@ -278,7 +314,7 @@ function PlaybackHudImpl({
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-1">
+        <div className={`flex min-w-0 items-end gap-1 ${hudFlowClass}`}>
           {showExitHostButton && (
             <button
               type="button"
@@ -290,16 +326,30 @@ function PlaybackHudImpl({
           )}
           {liteMode ? (
             <>
-              <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
+              <div
+                className={`text-base md:text-lg ${pitchScore ? "text-white" : "text-white/50"}`}
+              >
                 Score: {pitchScore ?? "--"}
               </div>
               <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
-                <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
+                <KeyChip
+                  label="R"
+                  ariaLabel="Toggle mic monitor"
+                  onClick={handleToggleMicMonitor}
+                />
               </HintRow>
               <HintRow text={formatGuideText(guideVolume)}>
                 <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
-                <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
-                <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
+                <KeyChip
+                  label="+"
+                  ariaLabel="Increase guide volume"
+                  onClick={handleIncreaseGuide}
+                />
+                <KeyChip
+                  label="−"
+                  ariaLabel="Decrease guide volume"
+                  onClick={handleDecreaseGuide}
+                />
               </HintRow>
               <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
                 <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
@@ -310,20 +360,34 @@ function PlaybackHudImpl({
             </>
           ) : (
             <>
-              <div className={`text-lg text-white${pitchScore ? "" : "/50"}`}>
+              <div
+                className={`text-base md:text-lg ${pitchScore ? "text-white" : "text-white/50"}`}
+              >
                 Score: {pitchScore ?? "--"}
               </div>
               <HintRow text={formatGuideText(guideVolume)}>
                 <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
-                <KeyChip label="+" ariaLabel="Increase guide volume" onClick={handleIncreaseGuide} />
-                <KeyChip label="−" ariaLabel="Decrease guide volume" onClick={handleDecreaseGuide} />
+                <KeyChip
+                  label="+"
+                  ariaLabel="Increase guide volume"
+                  onClick={handleIncreaseGuide}
+                />
+                <KeyChip
+                  label="−"
+                  ariaLabel="Decrease guide volume"
+                  onClick={handleDecreaseGuide}
+                />
               </HintRow>
               <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
                 <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
                 <KeyChip label="N" ariaLabel="Next microphone" onClick={handleCycleMic} />
               </HintRow>
               <HintRow text={`Monitor: ${micMonitorUserEnabled ? "ON" : "OFF"}`}>
-                <KeyChip label="R" ariaLabel="Toggle mic monitor" onClick={handleToggleMicMonitor} />
+                <KeyChip
+                  label="R"
+                  ariaLabel="Toggle mic monitor"
+                  onClick={handleToggleMicMonitor}
+                />
               </HintRow>
               <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
                 <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
@@ -339,11 +403,17 @@ function PlaybackHudImpl({
         </div>
       </div>
 
-      {!liteMode && <VenueTicker nowPlaying={{ title, artist }} upcomingQueue={upcomingQueue} />}
+      {!liteMode && position !== "bottom" && (
+        <VenueTicker nowPlaying={{ title, artist }} upcomingQueue={upcomingQueue} />
+      )}
 
-      {showPixabayCredit && <p className={`${FOOTER_NOTE_CLASS} right-4`}>Videos by Pixabay</p>}
+      {showPixabayCredit && (
+        <p className={`${NOTE_BASE_CLASS} ${notePositionClass(position)} right-4`}>
+          Videos by Pixabay
+        </p>
+      )}
 
-      <Disclaimer source={transcriptSource} />
+      <Disclaimer source={transcriptSource} position={position} />
     </>
   );
 }

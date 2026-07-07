@@ -21,13 +21,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::cache::nightingale_dir;
 
+mod analysis_queue;
 mod connection;
 mod migrations;
-mod analysis_queue;
-mod songs;
 mod queries;
 mod rebase;
 pub mod remote;
+mod songs;
 
 pub use analysis_queue::{
     analysis_queue_clear, analysis_queue_delete, analysis_queue_load_rows,
@@ -38,7 +38,7 @@ pub use queries::{
     iter_file_hashes_filtered_not_analyzed, iter_file_hashes_filtered_reanalyzable, load_meta_sql,
     load_songs_page, query_library_menu_items,
 };
-pub use rebase::rebase_song_album_art_paths;
+pub use rebase::{rebase_song_album_art_cache_paths, rebase_song_album_art_paths};
 pub use songs::{
     append_songs_for_scan, delete_songs_not_in_paths, load_all_songs, load_song_by_hash,
     load_song_hash_strings, load_song_path_strings, read_library_meta, rekey_song, replace_all_songs_sorted,

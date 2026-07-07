@@ -53,8 +53,16 @@ interface PlaybackLayoutProps {
 }
 
 function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
-  const { isReady, isBooting, isFinished, paused, guideVolume, stemsReady, bootStage, decodeFormat } =
-    usePlaybackTransportState();
+  const {
+    isReady,
+    isBooting,
+    isFinished,
+    paused,
+    guideVolume,
+    stemsReady,
+    bootStage,
+    decodeFormat,
+  } = usePlaybackTransportState();
   const { handleContinue, handleExit, handlePause, setGuideVolume } = usePlaybackTransportActions();
   const { themeIndex } = usePlaybackThemeState();
   const { setThemeIndex } = usePlaybackThemeActions();
@@ -80,6 +88,9 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
         ? "MP3 (client_mp3)"
         : configuredDecodeLabel;
   const clearedFinishedSongRef = useRef(false);
+  const lyricsVerticalPosition = config?.lyrics_vertical_position ?? "bottom";
+  const lyricsHorizontalPosition = config?.lyrics_horizontal_position ?? "center";
+  const hudPosition = lyricsVerticalPosition === "top" ? "bottom" : "top";
 
   usePlaybackInput(config);
   const result = usePlaybackResult(song);
@@ -185,8 +196,8 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
               Preparing: {song.title || "Unknown title"} - {song.artist || "Unknown artist"}
             </p>
             <p className="mt-2 text-[11px] text-white/60">
-              Stems: {stemsReady ? "ready" : "loading"} | Audio: {isReady ? "ready" : "decoding"} |
-              {" "}Stage: {bootStage}
+              Stems: {stemsReady ? "ready" : "loading"} | Audio: {isReady ? "ready" : "decoding"} |{" "}
+              Stage: {bootStage}
             </p>
             <p className="mt-1 text-[11px] text-white/60">Audio decode: {decodeLabel}</p>
             {showExitHostButton && (
@@ -210,16 +221,18 @@ function PlaybackLayout({ song, config }: PlaybackLayoutProps) {
             title={song.title}
             artist={song.artist}
             config={config}
+            position={hudPosition}
             liteMode={performanceMode}
             karaokeQueue={snapshot?.queue ?? []}
             canPatchSessionSettings={canPatchSessionSettings}
             onGuideVolumeChange={handleGuideVolumeChange}
             onThemeChange={handleThemeChange}
           />
-          {showPitchGraph && <PitchGraph series={series} />}
+          {showPitchGraph && <PitchGraph series={series} position={hudPosition} />}
           <LyricsDisplay
             segments={segments}
-            position={config?.lyrics_position ?? "bottom"}
+            verticalPosition={lyricsVerticalPosition}
+            horizontalPosition={lyricsHorizontalPosition}
             fontScale={config?.lyrics_font_scale ?? 1}
             performanceMode={performanceMode}
           />

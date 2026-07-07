@@ -6,10 +6,12 @@
  * to gate hardware capture, and persists user toggles to the app config.
  */
 
-import { useMicCapture, useMicDevices, useMicPitch } from "@/hooks/use-mic-pitch";
+import { useMicCapture, useMicPitch } from "@/hooks/use-mic-pitch";
+import { useMicDevices } from "@/queries/use-mic-devices";
 import { useMicReactive, type MicReactiveRef } from "@/hooks/use-mic-reactive";
 import { usePitchScoring } from "@/hooks/use-pitch-scoring";
 import { usePlaybackConfigPersist } from "@/hooks/playback/use-playback-config-persist";
+import { DEFAULT_MIC_LATENCY_COMPENSATION_SEC } from "@/lib/pitch/constants";
 import type { PitchSeries } from "@/lib/pitch/state";
 import type { AppConfig } from "@/types/AppConfig";
 import {
@@ -91,6 +93,7 @@ export function PlaybackMicProvider({ config, children }: PlaybackMicProviderPro
   const { series, score } = usePitchScoring(
     { isReady, duration, getVocalsBuffer, subscribe },
     latestPitch,
+    config?.mic_latency_compensation_sec ?? DEFAULT_MIC_LATENCY_COMPENSATION_SEC,
   );
 
   const micErrorShown = useRef(false);

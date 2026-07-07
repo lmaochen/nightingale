@@ -23,33 +23,21 @@ pub use analyzer::{
     reanalyze_force_transcribe, reanalyze_full, reanalyze_transcript, shutdown_server,
 };
 pub use cache::{
-    CacheDir, CacheStats, change_app_data_path, clear_models, clear_videos,
-    default_nightingale_dir, nightingale_dir, normalized_target_path, same_path,
+    CacheDir, CachePaths, CacheStats, cache_roots, change_app_data_path, clear_models,
+    clear_videos, default_nightingale_dir, nightingale_dir, normalized_target_path, same_path,
 };
 pub use config::{AppConfig, LibrarySource};
 pub use downtify::{
     load_queue as downtify_load_queue, queue_download as downtify_queue_download,
     search_songs as downtify_search_songs,
 };
-pub use media_server::MediaEndpoint;
 pub use library_db::{init_library, library_db_path};
 pub use library_menu::{LibraryMenuItem, LibraryMenuItems, load_library_menu_items};
 pub use library_model::{LibraryMenuFilters, LoadSongsParams, SongsMeta, SongsStore};
-pub use source::{
-    JellyfinAuth, JellyfinSource, MediaSource, NavidromeAuth, NavidromeSource, SourceKind,
-    active_source,
-    jellyfin::{
-        JellyfinHealth, JellyfinLoginResult, login as jellyfin_login, ping as jellyfin_ping,
-        ping_current as jellyfin_ping_current,
-    },
-    navidrome::{
-        NavidromeHealth, NavidromeLoginResult, login as navidrome_login, ping as navidrome_ping,
-        ping_current as navidrome_ping_current,
-    },
-};
 pub use lyrics::{
     LrclibCandidate, LyricsFile, load_lyrics_file, save_lyrics_and_realign, search_lrclib_for_hash,
 };
+pub use media_server::MediaEndpoint;
 pub use playback::{
     AudioPaths, CacheWarmupStatus, PixabayVideoDownloaded, PlaybackWarmupStatus, ShiftDone,
     ShiftResult, StemsReady,
@@ -64,8 +52,20 @@ pub use playback::{
 pub use profile::ProfileStore;
 pub use scanner::start_scan;
 pub use song::SongOrigin;
+pub use source::{
+    JellyfinAuth, JellyfinSource, MediaSource, NavidromeAuth, NavidromeSource, SourceKind,
+    active_source,
+    jellyfin::{
+        JellyfinHealth, JellyfinLoginResult, login as jellyfin_login, ping as jellyfin_ping,
+        ping_current as jellyfin_ping_current,
+    },
+    navidrome::{
+        NavidromeHealth, NavidromeLoginResult, login as navidrome_login, ping as navidrome_ping,
+        ping_current as navidrome_ping_current,
+    },
+};
 pub use vendor::{
-    SetupProgress, SetupStep, clear_vendor_dir, is_ready, mark_ready,
+    SetupFolders, SetupProgress, SetupStep, clear_vendor_dir, is_ready, mark_ready,
     refresh_analyzer_scripts_if_ready, resolve_data_path_input, run_vendor_setup, step_create_venv,
     step_download_ffmpeg, step_download_uv, step_extract_scripts, step_install_packages,
     step_install_python,
@@ -88,6 +88,10 @@ pub fn startup() -> Result<(), String> {
 
     scanner::ensure_auto_rescan_loop();
     scanner::ensure_downtify_queue_loop();
-    
+
+    if AppConfig::load().auto_analyze() {
+        analyzer::enqueue_all(&LibraryMenuFilters::default());
+    }
+
     Ok(())
 }

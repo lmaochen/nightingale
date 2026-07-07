@@ -144,7 +144,7 @@ This replaces the server binary and restarts Nightingale. Your config, library, 
 To install a specific version:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rzru/nightingale/master/scripts/install.sh | NIGHTINGALE_VERSION=v0.7.2 bash
+curl -fsSL https://raw.githubusercontent.com/rzru/nightingale/master/scripts/install.sh | NIGHTINGALE_VERSION=v0.8.0 bash
 ```
 
 ## Useful commands
@@ -171,6 +171,10 @@ http://nightingale.local
 ```
 
 If your router supports DHCP reservations, reserve a stable IP for the host too.
+
+## Run with Docker
+
+Prefer containers? You can skip the systemd / Caddy / Avahi installer entirely and run the server in Docker (CPU or CUDA/GPU). See [Docker](./docker.md).
 
 ## Build from source
 
