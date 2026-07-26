@@ -17,7 +17,7 @@ use app_core::{AppConfig, SongsStore};
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use cache::{calculate_cache_stats, clear_all, clear_models_command, clear_videos_command};
 use config::{load_config, save_config};
-use lyrics::{load_lyrics, save_lyrics, search_lrclib_lyrics};
+use lyrics::{apply_timed_lyrics, load_lyrics, provide_lrc, save_lyrics, search_lrclib_lyrics};
 use microphones::{list_microphones, set_monitor_gain, start_mic_capture, stop_mic_capture};
 use playback::{
     ensure_mp3_stems, ensure_playable_source_video, fetch_pixabay_videos, get_audio_paths,
@@ -29,7 +29,7 @@ use scanner::{
     clear_library_source, jellyfin_login, jellyfin_ping, load_analysis_queue,
     downtify_load_queue, downtify_queue_download, downtify_search_songs,
     load_library_menu_items, load_songs, load_songs_meta, navidrome_login, navidrome_ping,
-    set_library_source, trigger_scan,
+    plex_begin_pin, plex_manual_login, plex_ping, plex_poll_pin, set_library_source, trigger_scan,
 };
 use tauri::{Manager, RunEvent, WebviewWindowBuilder};
 use vendor::{is_ready, trigger_setup};
@@ -112,6 +112,10 @@ pub fn run() {
             jellyfin_ping,
             navidrome_login,
             navidrome_ping,
+            plex_begin_pin,
+            plex_poll_pin,
+            plex_manual_login,
+            plex_ping,
             load_songs,
             load_songs_meta,
             load_analysis_queue,
@@ -134,6 +138,8 @@ pub fn run() {
             load_lyrics,
             search_lrclib_lyrics,
             save_lyrics,
+            provide_lrc,
+            apply_timed_lyrics,
             // Playback
             load_transcript,
             get_audio_paths,

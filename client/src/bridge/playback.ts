@@ -71,7 +71,7 @@ export const tauriPlaybackAdapter: PlaybackAdapter = {
     const paths = await tauriRawGetAudioPaths(fileHash);
     return {
       instrumental: tauriToMediaUrl(paths.instrumental),
-      vocals: tauriToMediaUrl(paths.vocals),
+      vocals: paths.vocals === null ? null : tauriToMediaUrl(paths.vocals),
     };
   },
 };
@@ -98,7 +98,7 @@ export const webPlaybackAdapter: PlaybackAdapter = {
     const paths = await tauriRawGetAudioPaths(fileHash);
     return {
       instrumental: webToMediaUrl(paths.instrumental),
-      vocals: webToMediaUrl(paths.vocals),
+      vocals: paths.vocals === null ? null : webToMediaUrl(paths.vocals),
     };
   },
 };
@@ -113,7 +113,7 @@ export const getAudioPathsClientMp3 = async (fileHash: string): Promise<AudioPat
   const toMediaUrl = isTauri ? tauriToMediaUrl : webToMediaUrl;
   return {
     instrumental: toMediaUrl(paths.instrumental),
-    vocals: toMediaUrl(paths.vocals),
+    vocals: paths.vocals === null ? null : toMediaUrl(paths.vocals),
   };
 };
 

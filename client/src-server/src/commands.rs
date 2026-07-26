@@ -166,6 +166,60 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
         "navidrome_ping" => {
             Ok(serde_json::to_value(app_core::navidrome_ping_current()).map_err(serde_err)?)
         }
+        "plex_begin_pin" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Args {
+                #[serde(default)]
+                client_id: Option<String>,
+            }
+            let args: Args = deserialize(payload)?;
+            let result = tokio::task::spawn_blocking(move || app_core::plex_begin_pin(args.client_id))
+                .await
+                .map_err(blocking_task_err)?
+                .map_err(|error| ApiError::bad_request(error.to_string()))?;
+            Ok(serde_json::to_value(result).map_err(serde_err)?)
+        }
+        "plex_poll_pin" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Args {
+                pin_id: String,
+                client_id: String,
+            }
+            let args: Args = deserialize(payload)?;
+            let result = tokio::task::spawn_blocking(move || {
+                app_core::plex_poll_pin(&args.pin_id, &args.client_id)
+            })
+            .await
+            .map_err(blocking_task_err)?
+            .map_err(|error| ApiError::bad_request(error.to_string()))?;
+            Ok(serde_json::to_value(result).map_err(serde_err)?)
+        }
+        "plex_manual_login" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Args {
+                base_url: String,
+                access_token: String,
+                #[serde(default)]
+                client_id: Option<String>,
+            }
+            let args: Args = deserialize(payload)?;
+            let result = tokio::task::spawn_blocking(move || {
+                app_core::plex_manual_login(&args.base_url, &args.access_token, args.client_id)
+            })
+            .await
+            .map_err(blocking_task_err)?
+            .map_err(|error| ApiError::bad_request(error.to_string()))?;
+            Ok(serde_json::to_value(result).map_err(serde_err)?)
+        }
+        "plex_ping" => {
+            let result = tokio::task::spawn_blocking(app_core::plex_ping_current)
+                .await
+                .map_err(blocking_task_err)?;
+            Ok(serde_json::to_value(result).map_err(serde_err)?)
+        }
         "load_songs" => {
             #[derive(Deserialize)]
             struct Args {
@@ -300,6 +354,31 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
             save_lyrics_and_realign(&args.file_hash, args.lines).map_err(ApiError::bad_request)?;
             Ok(Value::Null)
         }
+        "provide_lrc" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Args {
+                file_hash: String,
+                lrc_text: String,
+                separate_stems: bool,
+            }
+            let args: Args = deserialize(payload)?;
+            app_core::provide_lrc(&args.file_hash, &args.lrc_text, args.separate_stems)
+                .map_err(ApiError::bad_request)?;
+            Ok(Value::Null)
+        }
+        "apply_timed_lyrics" => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Args {
+                file_hash: String,
+                lrc_text: String,
+            }
+            let args: Args = deserialize(payload)?;
+            app_core::apply_timed_lyrics(&args.file_hash, &args.lrc_text)
+                .map_err(ApiError::bad_request)?;
+            Ok(Value::Null)
+        }
 
         // ── Playback ─────────────────────────────────────────────────────
         "load_transcript" => {
@@ -353,6 +432,10 @@ async fn dispatch(events: std::sync::Arc<EventBus>, name: &str, payload: Value) 
 
 fn serde_err(e: serde_json::Error) -> ApiError {
     ApiError::internal(format!("serialise: {e}"))
+}
+
+fn blocking_task_err(error: tokio::task::JoinError) -> ApiError {
+    ApiError::internal(format!("blocking command failed: {error}"))
 }
 
 fn deserialize<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, ApiError> {

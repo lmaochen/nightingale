@@ -16,7 +16,8 @@ export type TimeSubscriber = (time: number) => void;
 
 interface DecodedAudioPair {
   instrumental: AudioBuffer;
-  vocals: AudioBuffer;
+  /** `null` for LRC-provided songs without stems: only the original mix plays. */
+  vocals: AudioBuffer | null;
   duration: number;
   decodeFormat: "wav" | "mp3";
 }
@@ -59,7 +60,9 @@ function cacheDecodedAudio(fileHash: string, decoded: DecodedAudioPair): void {
 }
 
 export function setPlaybackAudioCacheLimit(limit: number): void {
-  const normalized = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : DEFAULT_DECODE_CACHE_LIMIT;
+  const normalized = Number.isFinite(limit)
+    ? Math.max(0, Math.floor(limit))
+    : DEFAULT_DECODE_CACHE_LIMIT;
   decodeCacheLimit = normalized;
   while (decodedAudioCache.size > decodeCacheLimit) {
     const oldest = decodedAudioCache.keys().next().value as string | undefined;
@@ -88,12 +91,13 @@ async function decodeAudioForFileHash(
   ctx: AudioContext,
   options?: { decodeTimeoutMs?: number; allowMp3Fallback?: boolean },
 ): Promise<DecodedAudioPair> {
-  const decodeFromPaths = async (paths: { instrumental: string; vocals: string }) => {
+  const decodeFromPaths = async (paths: { instrumental: string; vocals: string | null }) => {
     const decodeFormat =
       paths.instrumental.toLowerCase().includes(".wav") &&
-      paths.vocals.toLowerCase().includes(".wav")
+      (paths.vocals === null || paths.vocals.toLowerCase().includes(".wav"))
         ? "wav"
         : "mp3";
+    const vocalsUrl = paths.vocals;
     const [instData, vocData] = await Promise.all([
       fetch(paths.instrumental).then((r) => {
         if (!r.ok) {
@@ -101,12 +105,14 @@ async function decodeAudioForFileHash(
         }
         return r.arrayBuffer();
       }),
-      fetch(paths.vocals).then((r) => {
-        if (!r.ok) {
-          throw new Error(`Failed to fetch vocals: ${r.status}`);
-        }
-        return r.arrayBuffer();
-      }),
+      vocalsUrl === null
+        ? Promise.resolve(null)
+        : fetch(vocalsUrl).then((r) => {
+            if (!r.ok) {
+              throw new Error(`Failed to fetch vocals: ${r.status}`);
+            }
+            return r.arrayBuffer();
+          }),
     ]);
 
     if (ctx.state === "suspended") {
@@ -118,15 +124,21 @@ async function decodeAudioForFileHash(
 
     const [instrumental, vocals] = await Promise.all([
       ctx.decodeAudioData(instData),
-      ctx.decodeAudioData(vocData),
+      vocData === null ? Promise.resolve(null) : ctx.decodeAudioData(vocData),
     ]);
 
-    return { instrumental, vocals, duration: instrumental.duration, decodeFormat } as DecodedAudioPair;
+    return {
+      instrumental,
+      vocals,
+      duration: instrumental.duration,
+      decodeFormat,
+    } as DecodedAudioPair;
   };
 
   const paths = await adapter.getAudioPaths(fileHash);
   const isWavSource =
-    paths.instrumental.toLowerCase().includes(".wav") && paths.vocals.toLowerCase().includes(".wav");
+    paths.instrumental.toLowerCase().includes(".wav") &&
+    (paths.vocals === null || paths.vocals.toLowerCase().includes(".wav"));
   if (!options?.allowMp3Fallback || !isWavSource) {
     return decodeFromPaths(paths);
   }
@@ -242,6 +254,9 @@ export interface AudioPlayer {
   error: string | null;
   decodeFormat: "wav" | "mp3" | null;
   guideVolume: number;
+  /** False for LRC-provided songs without stems: the original mix plays and
+   * there is no separate guide vocal track to control. */
+  guideAvailable: boolean;
   play: () => void;
   pause: () => void;
   resume: () => void;
@@ -249,6 +264,7 @@ export interface AudioPlayer {
   setGuideVolume: (v: number) => void;
   cleanup: () => void;
   getVocalsBuffer: () => AudioBuffer | null;
+  getScoringBuffer: () => AudioBuffer | null;
   getAudioContext: () => AudioContext | null;
 }
 
@@ -285,6 +301,7 @@ export function useAudioPlayer(
   const [error, setError] = useState<string | null>(null);
   const [decodeFormat, setDecodeFormat] = useState<"wav" | "mp3" | null>(null);
   const [guideVolume, setGuideVolumeState] = useState(initialGuideVolume);
+  const [guideAvailable, setGuideAvailable] = useState(true);
 
   useEffect(() => {
     // Keep only one decoded pair in performance mode unless sticky predecode is enabled.
@@ -293,6 +310,11 @@ export function useAudioPlayer(
   }, [sequentialDecode, stickyPredecode]);
 
   const getVocalsBuffer = useCallback(() => vocalsBufRef.current, []);
+
+  const getScoringBuffer = useCallback(
+    () => vocalsBufRef.current ?? instrumentalBufRef.current,
+    [],
+  );
 
   const getAudioContext = useCallback(() => ctxRef.current, []);
 
@@ -364,7 +386,7 @@ export function useAudioPlayer(
       const vocBuf = vocalsBufRef.current;
       const gainNode = vocalsGainRef.current;
 
-      if (!ctx || !instBuf || !gainNode) {
+      if (!ctx || !instBuf) {
         return;
       }
 
@@ -375,13 +397,6 @@ export function useAudioPlayer(
       const instSrc = ctx.createBufferSource();
       instSrc.buffer = instBuf;
       instSrc.connect(ctx.destination);
-
-      let vocSrc: AudioBufferSourceNode | null = null;
-      if (vocBuf) {
-        vocSrc = ctx.createBufferSource();
-        vocSrc.buffer = vocBuf;
-        vocSrc.connect(gainNode);
-      }
 
       instSrc.onended = () => {
         if (!cancelledRef.current && playingRef.current && instrumentalSrcRef.current === instSrc) {
@@ -396,10 +411,18 @@ export function useAudioPlayer(
       startContextTimeRef.current = ctx.currentTime;
 
       instSrc.start(0, clamped);
-      vocSrc?.start(0, clamped);
-
       instrumentalSrcRef.current = instSrc;
-      vocalsSrcRef.current = vocSrc;
+
+      // No vocals stem (LRC-provided, no separation): play the original mix
+      // through the instrumental node only.
+      if (vocBuf && gainNode) {
+        const vocSrc = ctx.createBufferSource();
+        vocSrc.buffer = vocBuf;
+        vocSrc.connect(gainNode);
+        vocSrc.start(0, clamped);
+        vocalsSrcRef.current = vocSrc;
+      }
+
       playingRef.current = true;
     },
     [stopSources],
@@ -437,6 +460,7 @@ export function useAudioPlayer(
         vocalsBufRef.current = cached.vocals;
         setDuration(cached.duration);
         setDecodeFormat(cached.decodeFormat);
+        setGuideAvailable(cached.vocals !== null);
         setIsReady(true);
       } else if (decodeInFlight.has(fileHash)) {
         void decodeInFlight
@@ -447,6 +471,7 @@ export function useAudioPlayer(
             vocalsBufRef.current = decoded.vocals;
             setDuration(decoded.duration);
             setDecodeFormat(decoded.decodeFormat);
+            setGuideAvailable(decoded.vocals !== null);
             setIsReady(true);
           })
           .catch((e) => {
@@ -455,105 +480,112 @@ export function useAudioPlayer(
             }
           });
       } else {
-      adapter
-        .getAudioPaths(fileHash)
-        .then(async (paths) => {
-          const loadedDecodeFormat =
-            paths.instrumental.toLowerCase().includes(".wav") &&
-            paths.vocals.toLowerCase().includes(".wav")
-              ? "wav"
-              : "mp3";
+        adapter
+          .getAudioPaths(fileHash)
+          .then(async (paths) => {
+            const vocalsUrl = paths.vocals;
+            const loadedDecodeFormat =
+              paths.instrumental.toLowerCase().includes(".wav") &&
+              (vocalsUrl === null || vocalsUrl.toLowerCase().includes(".wav"))
+                ? "wav"
+                : "mp3";
+            setGuideAvailable(vocalsUrl !== null);
 
-          const instData = await fetch(paths.instrumental).then((r) => {
-            if (!r.ok) {
-              throw new Error(`Failed to fetch instrumental: ${r.status}`);
-            }
-            return r.arrayBuffer();
-          });
-          const instrumental = await ctx.decodeAudioData(instData);
-          if (isCancelled()) {
-            return;
-          }
-
-          instrumentalBufRef.current = instrumental;
-          setDuration(instrumental.duration);
-          setDecodeFormat(loadedDecodeFormat);
-          setIsReady(true);
-
-          let vocalsTimeoutId: number | null = null;
-          const decodeVocalsWithTimeout = async (): Promise<AudioBuffer> => {
-            const timeoutMs = 6500;
-            const timeout = new Promise<AudioBuffer>((_, reject) => {
-              vocalsTimeoutId = window.setTimeout(
-                () => reject(new Error("vocals-decode-timeout")),
-                timeoutMs,
-              );
+            const instData = await fetch(paths.instrumental).then((r) => {
+              if (!r.ok) {
+                throw new Error(`Failed to fetch instrumental: ${r.status}`);
+              }
+              return r.arrayBuffer();
             });
-            const primary = fetch(paths.vocals)
-              .then((r) => {
-                if (!r.ok) {
-                  throw new Error(`Failed to fetch vocals: ${r.status}`);
-                }
-                return r.arrayBuffer();
-              })
-              .then((vocData) => ctx.decodeAudioData(vocData));
-            return await Promise.race([primary, timeout]);
-          };
+            const instrumental = await ctx.decodeAudioData(instData);
+            if (isCancelled()) {
+              return;
+            }
 
-          void Promise.resolve()
-            .then(async () => {
-              try {
-                return await decodeVocalsWithTimeout();
-              } catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                if (!message.includes("vocals-decode-timeout")) {
-                  throw error;
-                }
-                const mp3Paths = await getAudioPathsClientMp3(fileHash);
-                const vocData = await fetch(mp3Paths.vocals).then((r) => {
+            instrumentalBufRef.current = instrumental;
+            setDuration(instrumental.duration);
+            setDecodeFormat(loadedDecodeFormat);
+            setIsReady(true);
+
+            // No vocals stem (LRC-provided, no separation): the original mix
+            // already plays through the instrumental node.
+            if (vocalsUrl === null) {
+              return;
+            }
+
+            let vocalsTimeoutId: number | null = null;
+            const decodeVocalsWithTimeout = async (): Promise<AudioBuffer> => {
+              const timeoutMs = 6500;
+              const timeout = new Promise<AudioBuffer>((_, reject) => {
+                vocalsTimeoutId = window.setTimeout(
+                  () => reject(new Error("vocals-decode-timeout")),
+                  timeoutMs,
+                );
+              });
+              const primary = fetch(vocalsUrl)
+                .then((r) => {
                   if (!r.ok) {
-                    throw new Error(`Failed to fetch fallback vocals: ${r.status}`);
+                    throw new Error(`Failed to fetch vocals: ${r.status}`);
                   }
                   return r.arrayBuffer();
-                });
-                return await ctx.decodeAudioData(vocData);
-              } finally {
-                if (vocalsTimeoutId !== null) {
-                  window.clearTimeout(vocalsTimeoutId);
+                })
+                .then((vocData) => ctx.decodeAudioData(vocData));
+              return await Promise.race([primary, timeout]);
+            };
+
+            void Promise.resolve()
+              .then(async () => {
+                try {
+                  return await decodeVocalsWithTimeout();
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : String(error);
+                  if (!message.includes("vocals-decode-timeout")) {
+                    throw error;
+                  }
+                  const mp3Paths = await getAudioPathsClientMp3(fileHash);
+                  if (mp3Paths.vocals === null) {
+                    throw error;
+                  }
+                  const vocData = await fetch(mp3Paths.vocals).then((r) => {
+                    if (!r.ok) {
+                      throw new Error(`Failed to fetch fallback vocals: ${r.status}`);
+                    }
+                    return r.arrayBuffer();
+                  });
+                  return await ctx.decodeAudioData(vocData);
+                } finally {
+                  if (vocalsTimeoutId !== null) {
+                    window.clearTimeout(vocalsTimeoutId);
+                  }
                 }
-              }
-            })
-            .then((vocals) => {
-              if (isCancelled()) {
-                return;
-              }
-              vocalsBufRef.current = vocals;
-              if (playingRef.current) {
-                const currentOffset =
-                  startOffsetRef.current + (ctx.currentTime - startContextTimeRef.current);
-                startVocalsSourceAt(currentOffset);
-              }
-            })
-            .catch(() => {
-              // Non-fatal in fast-start mode: keep instrumental playback alive.
-            });
-        })
-        .catch((e) => {
-          if (!isCancelled()) {
-            setError(`Failed to load audio: ${e}`);
-          }
-        });
+              })
+              .then((vocals) => {
+                if (isCancelled()) {
+                  return;
+                }
+                vocalsBufRef.current = vocals;
+                if (playingRef.current) {
+                  const currentOffset =
+                    startOffsetRef.current + (ctx.currentTime - startContextTimeRef.current);
+                  startVocalsSourceAt(currentOffset);
+                }
+              })
+              .catch(() => {
+                // Non-fatal in fast-start mode: keep instrumental playback alive.
+              });
+          })
+          .catch((e) => {
+            if (!isCancelled()) {
+              setError(`Failed to load audio: ${e}`);
+            }
+          });
       }
     } else {
       ensureDecodedAudio(fileHash, adapter, ctx, sequentialDecode, {
         decodeTimeoutMs: sequentialDecode ? 5000 : undefined,
         allowMp3Fallback: sequentialDecode,
       })
-        .then(async ({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
-          if (isCancelled()) {
-            return;
-          }
-
+        .then(({ instrumental, vocals, duration, decodeFormat: loadedDecodeFormat }) => {
           if (isCancelled()) {
             return;
           }
@@ -563,6 +595,7 @@ export function useAudioPlayer(
 
           setDuration(duration);
           setDecodeFormat(loadedDecodeFormat);
+          setGuideAvailable(vocals !== null);
 
           setIsReady(true);
         })
@@ -692,6 +725,7 @@ export function useAudioPlayer(
       error,
       decodeFormat,
       guideVolume,
+      guideAvailable,
       play,
       pause,
       resume,
@@ -699,6 +733,7 @@ export function useAudioPlayer(
       setGuideVolume,
       cleanup,
       getVocalsBuffer,
+      getScoringBuffer,
       getAudioContext,
     }),
     [
@@ -711,6 +746,7 @@ export function useAudioPlayer(
       error,
       decodeFormat,
       guideVolume,
+      guideAvailable,
       play,
       pause,
       resume,
@@ -718,6 +754,7 @@ export function useAudioPlayer(
       setGuideVolume,
       cleanup,
       getVocalsBuffer,
+      getScoringBuffer,
       getAudioContext,
     ],
   );

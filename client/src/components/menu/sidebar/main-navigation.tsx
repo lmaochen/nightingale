@@ -15,12 +15,13 @@ import {
   Flame,
   FileQuestionMark,
   DiscIcon,
+  ListMusicIcon,
   UserIcon,
   type LucideIcon,
 } from "lucide-react";
 import { useLibraryMenuItems } from "@/queries/use-library-menu-items";
 import type { LibraryMenuItem } from "@/types/LibraryMenuItem";
-import { useCallback, useEffect, useMemo } from "react";
+import { Fragment, useCallback, useEffect, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   isLibraryMenuItemActive,
@@ -40,6 +41,7 @@ import {
 import { FolderActions } from "./folder-actions";
 import { useNavigate } from "react-router";
 import { useIsMobile } from "@/hooks/use-is-mobile";
+import { ANALYSIS_STATUS_STYLES } from "@/lib/analysis-status-styles";
 
 type NavSectionConfig = {
   section: LibraryMenuSection;
@@ -52,6 +54,7 @@ const NAV_SECTIONS: NavSectionConfig[] = [
   { section: "no_metadata", label: "No Metadata", icon: FileQuestionMark },
   { section: "artists", label: "Artists", icon: UserIcon },
   { section: "albums", label: "Albums", icon: DiscIcon },
+  { section: "playlists", label: "Playlists", icon: ListMusicIcon },
 ];
 
 interface MenuItemCountsProps {
@@ -59,19 +62,57 @@ interface MenuItemCountsProps {
 }
 
 function MenuItemCounts({ item }: MenuItemCountsProps) {
+  const segments = [
+    ...(item.count > 0n
+      ? [{ label: "total", value: item.count, className: "bg-muted text-muted-foreground" }]
+      : []),
+    ...(item.queuedCount > 0n
+      ? [
+          {
+            label: "queued",
+            value: item.queuedCount,
+            className: ANALYSIS_STATUS_STYLES.queued,
+          },
+        ]
+      : []),
+    ...(item.analysingCount > 0n
+      ? [
+          {
+            label: "analysing",
+            value: item.analysingCount,
+            className: ANALYSIS_STATUS_STYLES.analysing,
+          },
+        ]
+      : []),
+    ...(item.analysedCount > 0n
+      ? [
+          {
+            label: "analysed",
+            value: item.analysedCount,
+            className: ANALYSIS_STATUS_STYLES.analysed,
+          },
+        ]
+      : []),
+  ];
+
+  if (segments.length === 0) {
+    return null;
+  }
+
   return (
-    <div className="flex gap-1">
-      {item.count !== item.analysedCount && (
-        <Badge className="h-5 border-0 bg-muted px-1.5 text-[0.65rem] font-medium text-muted-foreground">
-          {item.count.toString()}
-        </Badge>
-      )}
-      {item.analysedCount > 0n && (
-        <Badge className="h-5 border-0 bg-chart-3/15 px-1.5 text-[0.65rem] font-medium text-chart-3 dark:bg-chart-3/20">
-          {item.analysedCount.toString()}
-        </Badge>
-      )}
-    </div>
+    <Badge
+      className="h-[1.125rem] shrink-0 gap-0 overflow-hidden border border-foreground/15 bg-transparent p-0 text-[0.55rem] font-medium leading-none"
+      title={segments.map(({ label, value }) => `${value} ${label}`).join(", ")}
+    >
+      {segments.map(({ label, value, className }, index) => (
+        <Fragment key={label}>
+          {index > 0 && <span className="h-full w-px bg-foreground/15" />}
+          <span className={`${className} flex h-full min-w-5 items-center justify-center px-1`}>
+            {value.toString()}
+          </span>
+        </Fragment>
+      ))}
+    </Badge>
   );
 }
 
@@ -180,7 +221,11 @@ export const MainNavigation = ({
 
   const selectMenuItem = useCallback(
     (section: LibraryMenuSection, item: LibraryMenuItem) => {
-      setLibraryFilter(libraryFilterFromMenuSelection(section, item));
+      setLibraryFilter((current) => ({
+        ...libraryFilterFromMenuSelection(section, item),
+        status: current.status,
+        transcript_source: current.transcript_source,
+      }));
       if (isMobile) {
         setOpen(false);
       }

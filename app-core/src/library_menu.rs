@@ -8,6 +8,10 @@ pub struct LibraryMenuItem {
     pub label: String,
     #[serde(rename = "analysedCount")]
     pub analysed_count: u64,
+    #[serde(rename = "queuedCount")]
+    pub queued_count: u64,
+    #[serde(rename = "analysingCount")]
+    pub analysing_count: u64,
     pub count: u64,
 }
 
@@ -18,6 +22,7 @@ pub struct LibraryMenuItems {
     pub no_metadata: Vec<LibraryMenuItem>,
     pub artists: Vec<LibraryMenuItem>,
     pub albums: Vec<LibraryMenuItem>,
+    pub playlists: Vec<LibraryMenuItem>,
 }
 
 pub fn load_library_menu_items() -> rusqlite::Result<LibraryMenuItems> {

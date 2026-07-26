@@ -11,7 +11,7 @@ import {
 import { useGuideControls } from "@/hooks/playback";
 import type { JukeboxQueueItem } from "@/hooks/use-jukebox-session";
 import type { AppConfig } from "@/types/AppConfig";
-import { forwardRef, memo, useCallback, useEffect, useRef } from "react";
+import { forwardRef, memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { isPixabayTheme, nextThemeIndex, themeName } from "./background";
 
 const KARAOKE_JOIN_INTENT_KEY = "nightingale.karaoke.join-intent";
@@ -123,8 +123,28 @@ function VenueTicker({
 
 type PlaybackHudPosition = "top" | "bottom";
 
-function Disclaimer({ source, position }: { source: string; position: PlaybackHudPosition }) {
-  if (source === "usdx") {
+function Disclaimer({
+  source,
+  position,
+  noStems,
+  micActive,
+}: {
+  source: string;
+  position: PlaybackHudPosition;
+  noStems: boolean;
+  micActive: boolean;
+}) {
+  // No stems means we score against the original mix, so pitch scoring suffers.
+  if (noStems && micActive) {
+    return (
+      <DisclaimerNote position={position}>
+        Original mix is used, so pitch scoring will likely be inaccurate
+      </DisclaimerNote>
+    );
+  }
+
+  // USDX and provided LRC timings are authored, not AI-generated.
+  if (source === "usdx" || source === "lrc") {
     return null;
   }
 
@@ -133,11 +153,21 @@ function Disclaimer({ source, position }: { source: string; position: PlaybackHu
       ? "Timing is AI-generated and may not be perfectly accurate"
       : "Lyrics and timing are AI-generated and may not be perfectly accurate";
 
+  return <DisclaimerNote position={position}>{text}</DisclaimerNote>;
+}
+
+function DisclaimerNote({
+  position,
+  children,
+}: {
+  position: PlaybackHudPosition;
+  children: ReactNode;
+}) {
   return (
     <p
       className={`${NOTE_BASE_CLASS} ${notePositionClass(position)} left-1/2 -translate-x-1/2 whitespace-nowrap text-center`}
     >
-      {text}
+      {children}
     </p>
   );
 }
@@ -169,7 +199,7 @@ function PlaybackHudImpl({
   onGuideVolumeChange,
   onThemeChange,
 }: PlaybackHudProps) {
-  const { duration, guideVolume, paused } = usePlaybackTransportState();
+  const { duration, guideVolume, guideAvailable, paused } = usePlaybackTransportState();
   const { subscribe, getCurrentTime, handlePause, handleContinue, handleExit } =
     usePlaybackTransportActions();
   const { themeIndex, videoFlavor, sourceVideoPath } = usePlaybackThemeState();
@@ -338,19 +368,21 @@ function PlaybackHudImpl({
                   onClick={handleToggleMicMonitor}
                 />
               </HintRow>
-              <HintRow text={formatGuideText(guideVolume)}>
-                <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
-                <KeyChip
-                  label="+"
-                  ariaLabel="Increase guide volume"
-                  onClick={handleIncreaseGuide}
-                />
-                <KeyChip
-                  label="−"
-                  ariaLabel="Decrease guide volume"
-                  onClick={handleDecreaseGuide}
-                />
-              </HintRow>
+              {guideAvailable && (
+                <HintRow text={formatGuideText(guideVolume)}>
+                  <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
+                  <KeyChip
+                    label="+"
+                    ariaLabel="Increase guide volume"
+                    onClick={handleIncreaseGuide}
+                  />
+                  <KeyChip
+                    label="−"
+                    ariaLabel="Decrease guide volume"
+                    onClick={handleDecreaseGuide}
+                  />
+                </HintRow>
+              )}
               <HintRow text={`Theme: ${themeName(themeIndex, videoFlavor)}`}>
                 <KeyChip label="T" ariaLabel="Cycle theme" onClick={handleCycleTheme} />
               </HintRow>
@@ -365,19 +397,21 @@ function PlaybackHudImpl({
               >
                 Score: {pitchScore ?? "--"}
               </div>
-              <HintRow text={formatGuideText(guideVolume)}>
-                <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
-                <KeyChip
-                  label="+"
-                  ariaLabel="Increase guide volume"
-                  onClick={handleIncreaseGuide}
-                />
-                <KeyChip
-                  label="−"
-                  ariaLabel="Decrease guide volume"
-                  onClick={handleDecreaseGuide}
-                />
-              </HintRow>
+              {guideAvailable && (
+                <HintRow text={formatGuideText(guideVolume)}>
+                  <KeyChip label="G" ariaLabel="Toggle guide vocals" onClick={handleToggleGuide} />
+                  <KeyChip
+                    label="+"
+                    ariaLabel="Increase guide volume"
+                    onClick={handleIncreaseGuide}
+                  />
+                  <KeyChip
+                    label="−"
+                    ariaLabel="Decrease guide volume"
+                    onClick={handleDecreaseGuide}
+                  />
+                </HintRow>
+              )}
               <HintRow text={`Mic: ${micUserEnabled ? micName : "OFF"}`}>
                 <KeyChip label="M" ariaLabel="Toggle microphone" onClick={handleToggleMic} />
                 <KeyChip label="N" ariaLabel="Next microphone" onClick={handleCycleMic} />
@@ -413,7 +447,12 @@ function PlaybackHudImpl({
         </p>
       )}
 
-      <Disclaimer source={transcriptSource} position={position} />
+      <Disclaimer
+        source={transcriptSource}
+        position={position}
+        noStems={!guideAvailable}
+        micActive={micUserEnabled}
+      />
     </>
   );
 }

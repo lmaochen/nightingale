@@ -5,6 +5,7 @@ import { ExitDialog } from "@/components/menu/dialogs/exit";
 import { InfoDialog } from "@/components/menu/dialogs/info";
 import { JellyfinConnectDialog } from "@/components/menu/dialogs/remote-source/jellyfin-connect";
 import { NavidromeConnectDialog } from "@/components/menu/dialogs/remote-source/navidrome-connect";
+import { PlexConnectDialog } from "@/components/menu/dialogs/remote-source/plex-connect";
 import { SelectLanguageDialog } from "@/components/menu/dialogs/language";
 import { CreateProfileDialog } from "@/components/menu/dialogs/profile/create";
 import { ReanalyzeAllDialog } from "@/components/menu/dialogs/reanalyze-all";
@@ -81,6 +82,7 @@ export const MenuLayout = () => {
       <ReanalyzeAllDialog />
       <JellyfinConnectDialog />
       <NavidromeConnectDialog />
+      <PlexConnectDialog />
       <Setup />
       <SidebarInset className="overflow-y-auto overscroll-y-contain touch-pan-y">
         <div className="min-h-full pb-24 md:pb-0">

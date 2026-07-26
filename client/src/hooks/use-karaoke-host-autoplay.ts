@@ -32,7 +32,10 @@ function resolveSongRef(songRef: string, songs: Song[]) {
   return songs.find((song) => normalize(song.title) === normalizedRef) ?? null;
 }
 
-function resolveQueuedSong(queueItem: { title: string; artist: string; song: Record<string, unknown> }, songs: Song[]) {
+function resolveQueuedSong(
+  queueItem: { title: string; artist: string; song: Record<string, unknown> },
+  songs: Song[],
+) {
   const explicitHash = queueItem.song.file_hash;
   if (typeof explicitHash === "string") {
     const byHash = songs.find((song) => song.file_hash === explicitHash);
@@ -40,7 +43,9 @@ function resolveQueuedSong(queueItem: { title: string; artist: string; song: Rec
   }
 
   const title =
-    (typeof queueItem.song.name === "string" && queueItem.song.name.trim()) || queueItem.title || "";
+    (typeof queueItem.song.name === "string" && queueItem.song.name.trim()) ||
+    queueItem.title ||
+    "";
   const artistsArray = Array.isArray(queueItem.song.artists)
     ? queueItem.song.artists.filter((a): a is string => typeof a === "string")
     : [];
@@ -72,8 +77,7 @@ export function useKaraokeHostAutoplay() {
   const navigate = useNavigate();
   const location = useLocation();
   const autoNextRequested =
-    location.pathname === "/host" &&
-    new URLSearchParams(location.search).get("autoNext") === "1";
+    location.pathname === "/host" && new URLSearchParams(location.search).get("autoNext") === "1";
   const launchingRef = useRef(false);
   const prewarmedHashesRef = useRef(new Set<string>());
   const prewarmingHashesRef = useRef(new Set<string>());
@@ -97,14 +101,23 @@ export function useKaraokeHostAutoplay() {
     typeof (location.state as { song?: Song }).song?.file_hash === "string"
       ? (location.state as { song: Song }).song.file_hash
       : null;
-  const isHostRuntime = isHostDevice || location.pathname === "/host" || location.pathname === "/playback";
+  const isHostRuntime =
+    isHostDevice || location.pathname === "/host" || location.pathname === "/playback";
 
   const { data: songsData } = useQuery({
     queryKey: ["karaoke-host-autoplay-songs"],
     queryFn: async () =>
       loadSongs({
         search: null,
-        filters: { artist: null, album: null, query: null },
+        filters: {
+          artist: null,
+          album: null,
+          playlist: null,
+          query: null,
+          status: null,
+          transcript_source: null,
+          search: null,
+        },
         skip: 0,
         take: MAX_HOST_AUTOPLAY_SONGS,
       }),
@@ -117,13 +130,7 @@ export function useKaraokeHostAutoplay() {
   const stickyPredecode = config?.playback_sticky_predecode ?? false;
 
   useEffect(() => {
-    const targetLimit = isHostRuntime
-      ? performanceMode
-        ? stickyPredecode
-          ? 2
-          : 1
-        : 3
-      : 3;
+    const targetLimit = isHostRuntime ? (performanceMode ? (stickyPredecode ? 2 : 1) : 3) : 3;
     setPlaybackAudioCacheLimit(targetLimit);
   }, [isHostRuntime, performanceMode, stickyPredecode]);
 

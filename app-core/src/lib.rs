@@ -6,6 +6,7 @@ mod error;
 mod library_db;
 mod library_menu;
 mod library_model;
+mod lrc;
 mod lyrics;
 pub mod media_server;
 mod playback;
@@ -35,7 +36,8 @@ pub use library_db::{init_library, library_db_path};
 pub use library_menu::{LibraryMenuItem, LibraryMenuItems, load_library_menu_items};
 pub use library_model::{LibraryMenuFilters, LoadSongsParams, SongsMeta, SongsStore};
 pub use lyrics::{
-    LrclibCandidate, LyricsFile, load_lyrics_file, save_lyrics_and_realign, search_lrclib_for_hash,
+    LrclibCandidate, LyricsFile, apply_timed_lyrics, load_lyrics_file, provide_lrc,
+    save_lyrics_and_realign, search_lrclib_for_hash,
 };
 pub use media_server::MediaEndpoint;
 pub use playback::{
@@ -53,15 +55,20 @@ pub use profile::ProfileStore;
 pub use scanner::start_scan;
 pub use song::SongOrigin;
 pub use source::{
-    JellyfinAuth, JellyfinSource, MediaSource, NavidromeAuth, NavidromeSource, SourceKind,
-    active_source,
+    JellyfinAuth, JellyfinSource, MediaSource, NavidromeAuth, NavidromeSource, PlexAuth,
+    PlexSource, SourceKind, active_source,
     jellyfin::{
-        JellyfinHealth, JellyfinLoginResult, login as jellyfin_login, ping as jellyfin_ping,
-        ping_current as jellyfin_ping_current,
+        JellyfinHealth, JellyfinLibrary, JellyfinLoginResult, login as jellyfin_login,
+        ping as jellyfin_ping, ping_current as jellyfin_ping_current,
     },
     navidrome::{
         NavidromeHealth, NavidromeLoginResult, login as navidrome_login, ping as navidrome_ping,
         ping_current as navidrome_ping_current,
+    },
+    plex::{
+        PlexHealth, PlexPinPollResult, PlexPinStart, PlexSection, PlexServer,
+        begin_pin as plex_begin_pin, manual_login as plex_manual_login, ping as plex_ping,
+        ping_current as plex_ping_current, poll_pin as plex_poll_pin,
     },
 };
 pub use vendor::{

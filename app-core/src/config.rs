@@ -9,7 +9,7 @@ use crate::secret;
 
 /// Where the user wants Nightingale to source songs from. Persisted in
 /// `config.json` and consumed by both the scanner and the analyzer.
-#[derive(Debug, Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[derive(Clone, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
 pub enum LibrarySource {
@@ -28,6 +28,11 @@ pub enum LibrarySource {
         /// Stable per-install identifier we hand to Jellyfin in the
         /// `X-Emby-Authorization` header. Generated once at connect time.
         device_id: String,
+        /// Ids of the Jellyfin libraries (user views) the scan is restricted
+        /// to. Empty means "every library" — preserves the pre-selection
+        /// behaviour for configs written before this field existed.
+        #[serde(default)]
+        library_ids: Vec<String>,
     },
     Navidrome {
         base_url: String,
@@ -38,6 +43,73 @@ pub enum LibrarySource {
         /// token is `MD5(password + salt)` with a fresh salt per call.
         password: String,
     },
+    Plex {
+        base_url: String,
+        server_name: String,
+        machine_id: String,
+        username: String,
+        /// PMS access token obtained through hosted PIN linking or entered in
+        /// the advanced manual flow. It is encrypted in `config.json` and is
+        /// never placed in provider/media URLs.
+        access_token: String,
+        /// Stable install identity sent in Plex request headers.
+        client_id: String,
+        /// One or more explicitly selected Plex music section keys.
+        section_ids: Vec<String>,
+    },
+}
+
+impl std::fmt::Debug for LibrarySource {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Folder { path } => formatter
+                .debug_struct("Folder")
+                .field("path", path)
+                .finish(),
+            Self::Jellyfin {
+                base_url,
+                user_id,
+                username,
+                device_id,
+                library_ids,
+                ..
+            } => formatter
+                .debug_struct("Jellyfin")
+                .field("base_url", base_url)
+                .field("user_id", user_id)
+                .field("username", username)
+                .field("access_token", &"[REDACTED]")
+                .field("device_id", device_id)
+                .field("library_ids", library_ids)
+                .finish(),
+            Self::Navidrome {
+                base_url, username, ..
+            } => formatter
+                .debug_struct("Navidrome")
+                .field("base_url", base_url)
+                .field("username", username)
+                .field("password", &"[REDACTED]")
+                .finish(),
+            Self::Plex {
+                base_url,
+                server_name,
+                machine_id,
+                username,
+                client_id,
+                section_ids,
+                ..
+            } => formatter
+                .debug_struct("Plex")
+                .field("base_url", base_url)
+                .field("server_name", server_name)
+                .field("machine_id", machine_id)
+                .field("username", username)
+                .field("access_token", &"[REDACTED]")
+                .field("client_id", client_id)
+                .field("section_ids", section_ids)
+                .finish(),
+        }
+    }
 }
 
 impl LibrarySource {
@@ -54,12 +126,14 @@ impl LibrarySource {
                 username,
                 access_token,
                 device_id,
+                library_ids,
             } => Self::Jellyfin {
                 base_url,
                 user_id,
                 username,
                 access_token: transform(&access_token),
                 device_id,
+                library_ids,
             },
             Self::Navidrome {
                 base_url,
@@ -69,6 +143,23 @@ impl LibrarySource {
                 base_url,
                 username,
                 password: transform(&password),
+            },
+            Self::Plex {
+                base_url,
+                server_name,
+                machine_id,
+                username,
+                access_token,
+                client_id,
+                section_ids,
+            } => Self::Plex {
+                base_url,
+                server_name,
+                machine_id,
+                username,
+                access_token: transform(&access_token),
+                client_id,
+                section_ids,
             },
         }
     }
@@ -123,6 +214,7 @@ pub struct AppConfig {
     pub align_backend: Option<String>,
     pub vocal_detection_threshold_pct: Option<f64>,
     pub auto_analyze: Option<bool>,
+    pub song_list_view: Option<String>,
     pub language_overrides: Option<HashMap<String, String>>,
     /// Enables host/guest karaoke session mode in the web UI.
     pub karaoke_enabled: Option<bool>,
@@ -192,6 +284,7 @@ impl Default for AppConfig {
             align_backend: None,
             vocal_detection_threshold_pct: None,
             auto_analyze: None,
+            song_list_view: None,
             language_overrides: None,
             karaoke_enabled: None,
             karaoke_pin: None,
@@ -477,6 +570,7 @@ fn has_plaintext_secret(src: &LibrarySource) -> bool {
         LibrarySource::Folder { .. } => return false,
         LibrarySource::Jellyfin { access_token, .. } => access_token,
         LibrarySource::Navidrome { password, .. } => password,
+        LibrarySource::Plex { access_token, .. } => access_token,
     };
     !secret.is_empty() && !secret::is_encrypted(secret)
 }

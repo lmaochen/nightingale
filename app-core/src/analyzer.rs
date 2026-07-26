@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{LazyLock, Mutex};
@@ -323,6 +323,17 @@ static ANALYZER: LazyLock<Mutex<AnalyzerState>> = LazyLock::new(|| {
 static FORCE_TRANSCRIBE: LazyLock<Mutex<HashSet<String>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
+/// Hashes whose queued job should only run stem separation (key detect +
+/// separation) and keep the already-written LRC-provided transcript.
+static STEMS_ONLY: LazyLock<Mutex<HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Mark a hash so its next analysis pass separates stems without transcribing,
+/// preserving the transcript built from provided LRC.
+pub fn mark_stems_only(file_hash: &str) {
+    STEMS_ONLY.lock().unwrap().insert(file_hash.to_string());
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 fn update_queue_status(file_hash: &str, status: QueuedStatus) {
@@ -357,11 +368,15 @@ pub(crate) fn update_song_analyzed(
         if let Some(value) = tempo {
             song.tempo = value;
         }
+        // LRC-provided songs without stem separation are flagged in the
+        // transcript; mirror that onto the song so playback hides the guide.
+        song.no_stems = read_transcript_meta(&CacheDir::new(), file_hash).no_stems;
     } else {
         song.key = None;
         song.override_key = None;
         song.tempo = 1.0;
         song.key_offset = 0;
+        song.no_stems = false;
     }
     let _ = library_db::update_song_fields(file_hash, &song);
 }
@@ -657,8 +672,23 @@ fn process_song(initial_hash: &str, cache: &CacheDir) {
 
     update_queue_status(file_hash, QueuedStatus::Analyzing(0));
 
+    // Stems-only: keep the LRC-provided transcript and just separate stems.
+    // The intent may have been keyed by the pre-rekey hash for remote songs.
+    let stems_only = {
+        let mut set = STEMS_ONLY.lock().unwrap();
+        set.remove(file_hash) || set.remove(initial_hash)
+    };
+    if stems_only && file_hash != initial_hash {
+        // Move the pre-written transcript to the rekeyed hash so the pass can
+        // patch it in place.
+        let _ = std::fs::rename(
+            cache.transcript_path(initial_hash),
+            cache.transcript_path(file_hash),
+        );
+    }
+
     let config = AppConfig::load();
-    let skip_lrclib = FORCE_TRANSCRIBE.lock().unwrap().remove(file_hash);
+    let skip_lrclib = stems_only || FORCE_TRANSCRIBE.lock().unwrap().remove(file_hash);
     let lyrics_path = if skip_lrclib {
         None
     } else {
@@ -679,13 +709,23 @@ fn process_song(initial_hash: &str, cache: &CacheDir) {
         "vocal_detection_threshold_pct": config.vocal_detection_threshold_pct(),
     });
 
+    if stems_only {
+        cmd_json["skip_transcription"] = serde_json::json!(true);
+    }
+
     if let Some(ref lp) = lyrics_path {
         cmd_json["lyrics"] = serde_json::json!(lp.to_string_lossy());
     }
     let language_hint = config
         .language_override(file_hash)
         .map(str::to_string)
-        .or_else(|| lyrics_path.as_ref().and_then(|_| song.language.clone()));
+        .or_else(|| lyrics_path.as_ref().and_then(|_| song.language.clone()))
+        .filter(|lang| {
+            // "unknown"/empty is not a real language: passing it as a forced
+            // alignment language crashes whisperx, so let the worker detect it.
+            let normalized = lang.trim().to_ascii_lowercase();
+            !normalized.is_empty() && normalized != "unknown" && normalized != "und"
+        });
     if let Some(lang) = language_hint {
         cmd_json["language"] = serde_json::json!(lang);
     }
@@ -703,7 +743,7 @@ fn process_song(initial_hash: &str, cache: &CacheDir) {
         }
 
         let server = guard.as_mut().unwrap();
-        match send_and_monitor(server, &json_str, file_hash) {
+        match send_and_monitor(server, &json_str, Some(file_hash)) {
             Ok(SongResult::Done) => {
                 finalize_song(file_hash, cache);
                 return;
@@ -769,6 +809,120 @@ fn finalize_song(file_hash: &str, cache: &CacheDir) {
     }
 }
 
+// ─── LRC (play-original) preparation ─────────────────────────────────
+
+/// Prepare an LRC-provided song that plays over its original mix, without
+/// routing it through the analysis status queue.
+///
+/// The analyzer-free work runs synchronously so the song is immediately
+/// playable: materialize the audio, rekey remote rows to the content hash, and
+/// mark the song ready (source=Lrc, no_stems). None of this touches the
+/// analyzer server, so it never stalls behind a running analysis.
+///
+/// The musical key is then detected on a background thread (which contends on
+/// the analyzer server) and patched in once it lands, so the key/tempo controls
+/// unlock later without blocking playback.
+pub fn prepare_lrc_no_stems(file_hash: &str) -> Result<(), NightingaleError> {
+    let cache = CacheDir::new();
+    let Some(song) = library_db::load_song_by_hash(file_hash).ok().flatten() else {
+        return Err(NightingaleError::Other("Song not found".into()));
+    };
+
+    // Materialize the audio and, for remote sources, rekey the row to the
+    // content hash so all downstream cache files follow the usual layout.
+    let (mut song, local_path, real_hash) = prepare_audio_for_analysis(&song, &cache)?;
+    let real_hash = real_hash.to_string();
+
+    // A rekey moves the row — carry the transcript we wrote under the original
+    // hash across so the key pass can patch it in place.
+    if real_hash != file_hash {
+        let _ = std::fs::rename(
+            cache.transcript_path(file_hash),
+            cache.transcript_path(&real_hash),
+        );
+    }
+
+    // Mark ready right away (key still unknown) so playback over the original
+    // mix is available immediately, before the key detection runs.
+    song.is_analyzed = true;
+    song.transcript_source = Some(TranscriptSource::Lrc);
+    song.key = None;
+    song.override_key = None;
+    song.tempo = 1.0;
+    song.key_offset = 0;
+    song.no_stems = true;
+    library_db::update_song_fields(&real_hash, &song)
+        .map_err(|e| NightingaleError::Other(e.to_string()))?;
+    let _ = crate::playback::ensure_playable_source_video(&real_hash);
+
+    // Detect the key off-queue in the background; patch it onto the row once it
+    // lands so the key/tempo shift controls unlock without blocking playback.
+    std::thread::spawn(move || {
+        let cache = CacheDir::new();
+        if let Err(e) = run_key_pass(&cache, &local_path, &real_hash) {
+            warn!("[analyzer] LRC key detection failed for {real_hash}: {e}");
+            return;
+        }
+        let meta = read_transcript_meta(&cache, &real_hash);
+        if let Some(mut updated) = library_db::load_song_by_hash(&real_hash).ok().flatten() {
+            updated.key = meta.key;
+            let _ = library_db::update_song_fields(&real_hash, &updated);
+        }
+        info!("[analyzer] LRC key detection complete for {real_hash}");
+    });
+    Ok(())
+}
+
+/// Run a key-only analysis pass (no transcription, no stem separation) against
+/// the running analyzer server, keeping it off the status queue. On success the
+/// detected key is patched into the existing transcript by the pipeline.
+fn run_key_pass(
+    cache: &CacheDir,
+    local_path: &Path,
+    file_hash: &str,
+) -> Result<(), NightingaleError> {
+    let config = AppConfig::load();
+    let cmd_json = serde_json::json!({
+        "type": "analyze",
+        "audio_path": local_path.to_string_lossy(),
+        "cache_path": cache.path.to_string_lossy(),
+        "hash": file_hash,
+        "model": config.whisper_model(),
+        "beam_size": config.beam_size(),
+        "batch_size": config.batch_size(),
+        "separator": config.separator(),
+        "engine": config.asr_engine(),
+        "align_backend": config.align_backend(),
+        "vocal_detection_threshold_pct": config.vocal_detection_threshold_pct(),
+        // Key only: keep the provided LRC transcript and the original mix.
+        "skip_transcription": true,
+        "skip_separation": true,
+    });
+    let json_str = serde_json::to_string(&cmd_json).unwrap();
+
+    let mut retried = false;
+    loop {
+        let mut guard = ANALYZER_SERVER.lock().unwrap();
+        ensure_server(&mut guard)?;
+        let server = guard.as_mut().unwrap();
+        // `None` progress hash keeps this off the status pipe (no queue rows).
+        match send_and_monitor(server, &json_str, None) {
+            Ok(SongResult::Done) => return Ok(()),
+            Ok(SongResult::Oom) | Err(_) => {
+                *guard = None;
+                if !retried {
+                    retried = true;
+                    continue;
+                }
+                return Err(NightingaleError::Other("key detection failed".into()));
+            }
+            Ok(SongResult::Error(msg)) => {
+                return Err(NightingaleError::Other(msg));
+            }
+        }
+    }
+}
+
 // ─── Audio materialization for non-local sources ─────────────────────
 
 /// Make sure the song's audio is present on disk and the row is keyed by the
@@ -785,7 +939,7 @@ fn prepare_audio_for_analysis(
         SongOrigin::LocalFile => Ok((song.clone(), song.path.clone(), song.file_hash.clone())),
         // Both remote origins go through the active source's
         // `ensure_local_media` and then get rekeyed to the true Blake3 hash.
-        SongOrigin::Jellyfin { .. } | SongOrigin::Navidrome { .. } => {
+        SongOrigin::Jellyfin { .. } | SongOrigin::Navidrome { .. } | SongOrigin::Plex { .. } => {
             let source = active_source()?
                 .ok_or_else(|| NightingaleError::Other("no active library source".into()))?;
             let downloaded_path = source.ensure_local_media(song, cache)?;
@@ -858,7 +1012,7 @@ enum ServerEvent {
 fn send_and_monitor(
     server: &mut ServerProcess,
     json_cmd: &str,
-    file_hash: &str,
+    progress_hash: Option<&str>,
 ) -> Result<SongResult, NightingaleError> {
     server.writer.write_all(json_cmd.as_bytes())?;
     server.writer.write_all(b"\n")?;
@@ -891,7 +1045,9 @@ fn send_and_monitor(
                 if !msg.is_empty() {
                     info!("[analyzer] progress {pct}% {msg}");
                 }
-                update_queue_status(file_hash, QueuedStatus::Analyzing(pct as usize));
+                if let Some(hash) = progress_hash {
+                    update_queue_status(hash, QueuedStatus::Analyzing(pct as usize));
+                }
             }
             ServerEvent::Done { .. } => return Ok(SongResult::Done),
             ServerEvent::Error { kind, msg } => {

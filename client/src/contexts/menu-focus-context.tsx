@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 
-export type FocusPanel = "songList" | "sidebar";
+export type FocusPanel = "songList" | "sidebar" | "songDetails";
 export type FocusSource = "mouse" | "nav";
 
 export interface MenuFocus {
@@ -28,6 +28,7 @@ export interface MenuFocusActions {
   onConfirmAnalyzeAll: (() => void) | null;
   onSidebarBack: (() => boolean) | null;
   isSidebarBusy: (() => boolean) | null;
+  hasSongDetails: boolean;
   songCount: number;
   sidebarCount: number;
   sidebarSubCountByIndex: Map<number, number>;
@@ -43,6 +44,7 @@ export interface MenuFocusContextValue {
   scrollTopRef: RefObject<number>;
   sidebarScrollRef: RefObject<HTMLElement | null>;
   sidebarScrollTopRef: RefObject<number>;
+  selectedSongKeyRef: RefObject<string | null>;
 }
 
 const MenuFocusContext = createContext<MenuFocusContextValue | null>(null);
@@ -63,6 +65,7 @@ const INITIAL_ACTIONS: MenuFocusActions = {
   onConfirmAnalyzeAll: null,
   onSidebarBack: null,
   isSidebarBusy: null,
+  hasSongDetails: false,
   songCount: 0,
   sidebarCount: 0,
   sidebarSubCountByIndex: new Map(),
@@ -75,6 +78,7 @@ export function MenuFocusProvider({ children }: { children: ReactNode }) {
   const scrollTopRef = useRef<number>(0);
   const sidebarScrollRef = useRef<HTMLElement | null>(null);
   const sidebarScrollTopRef = useRef<number>(0);
+  const selectedSongKeyRef = useRef<string | null>(null);
 
   const setFocus = useCallback((updater: (prev: MenuFocus) => MenuFocus) => {
     setFocusState(updater);
@@ -99,6 +103,7 @@ export function MenuFocusProvider({ children }: { children: ReactNode }) {
       scrollTopRef,
       sidebarScrollRef,
       sidebarScrollTopRef,
+      selectedSongKeyRef,
     }),
     [focus, setFocus, activate, deactivate],
   );

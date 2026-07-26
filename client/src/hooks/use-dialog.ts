@@ -14,6 +14,7 @@ export type DialogMode =
   | "jellyfin-connect"
   | "navidrome-connect"
   | "reanalyze-all"
+  | "plex-connect"
   | { mode: "language"; song: Song }
   | { mode: "edit-lyrics"; song: Song }
   | { mode: "clear-cache"; target: ClearCacheTarget }

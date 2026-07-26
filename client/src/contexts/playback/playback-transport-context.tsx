@@ -34,6 +34,7 @@ export interface PlaybackTransportState {
   duration: number;
   guideVolume: number;
   decodeFormat: "wav" | "mp3" | null;
+  guideAvailable: boolean;
   error: string | null;
 }
 
@@ -43,6 +44,7 @@ export interface PlaybackTransportActions {
   seek: (time: number) => void;
   setGuideVolume: (volume: number) => void;
   getVocalsBuffer: AudioPlayer["getVocalsBuffer"];
+  getScoringBuffer: AudioPlayer["getScoringBuffer"];
   getAudioContext: AudioPlayer["getAudioContext"];
   /** Raw audio-engine pause; does NOT raise the `paused` UI flag. */
   pauseAudio: () => void;
@@ -186,6 +188,7 @@ export function PlaybackTransportProvider({
       duration: audio.duration,
       guideVolume: audio.guideVolume,
       decodeFormat: audio.decodeFormat,
+      guideAvailable: audio.guideAvailable,
       error: audio.error,
     }),
     [
@@ -198,6 +201,7 @@ export function PlaybackTransportProvider({
       audio.duration,
       audio.guideVolume,
       audio.decodeFormat,
+      audio.guideAvailable,
       audio.error,
       paused,
     ],
@@ -210,6 +214,7 @@ export function PlaybackTransportProvider({
       seek: audio.seek,
       setGuideVolume: audio.setGuideVolume,
       getVocalsBuffer: audio.getVocalsBuffer,
+      getScoringBuffer: audio.getScoringBuffer,
       getAudioContext: audio.getAudioContext,
       pauseAudio: audio.pause,
       handlePause,
@@ -222,6 +227,7 @@ export function PlaybackTransportProvider({
       audio.seek,
       audio.setGuideVolume,
       audio.getVocalsBuffer,
+      audio.getScoringBuffer,
       audio.getAudioContext,
       audio.pause,
       handlePause,

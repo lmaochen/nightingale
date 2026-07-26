@@ -43,7 +43,10 @@ interface PendingImport {
 function formatAnalysisStatus(status: unknown): string {
   if (status === "Queued") return "Queued";
   if (status && typeof status === "object") {
-    if ("Analyzing" in status && typeof (status as { Analyzing?: unknown }).Analyzing === "number") {
+    if (
+      "Analyzing" in status &&
+      typeof (status as { Analyzing?: unknown }).Analyzing === "number"
+    ) {
       return `Analyzing ${Math.round((status as { Analyzing: number }).Analyzing)}%`;
     }
     if ("Failed" in status && typeof (status as { Failed?: unknown }).Failed === "string") {
@@ -129,7 +132,15 @@ export function KaraokeJoinPage() {
     queryFn: async () =>
       loadSongs({
         search: null,
-        filters: { artist: null, album: null, query: null },
+        filters: {
+          artist: null,
+          album: null,
+          playlist: null,
+          query: null,
+          status: null,
+          transcript_source: null,
+          search: null,
+        },
         skip: 0,
         take: LIBRARY_TAKE,
       }),
@@ -144,13 +155,18 @@ export function KaraokeJoinPage() {
   }, [query]);
   const artistNeedle = useMemo(() => normalize(artistQuery), [artistQuery]);
   const allArtists = useMemo(
-    () => (libraryMenu?.artists ?? []).map((item) => item.label).filter((label) => label.trim().length > 0),
+    () =>
+      (libraryMenu?.artists ?? [])
+        .map((item) => item.label)
+        .filter((label) => label.trim().length > 0),
     [libraryMenu?.artists],
   );
   const visibleArtists = useMemo(
     () =>
       allArtists
-        .filter((artist) => (artistNeedle.length > 0 ? normalize(artist).includes(artistNeedle) : true))
+        .filter((artist) =>
+          artistNeedle.length > 0 ? normalize(artist).includes(artistNeedle) : true,
+        )
         .slice(0, 120),
     [allArtists, artistNeedle],
   );
@@ -192,7 +208,7 @@ export function KaraokeJoinPage() {
   const hostDecodeStatus = snapshot?.host_decode_status ?? null;
   const hostDecodeSongHash = snapshot?.host_decode_song_hash ?? null;
   const hostDecodeError = snapshot?.host_decode_error ?? null;
-  const guidePct = Math.round(((snapshot?.guide_volume ?? 0.3) * 100));
+  const guidePct = Math.round((snapshot?.guide_volume ?? 0.3) * 100);
   const playbackState = snapshot?.paused ? "Paused" : "Playing";
   const monitorState = snapshot?.mic_monitoring ? "On" : "Off";
 
@@ -205,7 +221,15 @@ export function KaraokeJoinPage() {
     try {
       const result = await loadSongs({
         search: libraryQuery,
-        filters: { artist: selectedArtist, album: null, query: null },
+        filters: {
+          artist: selectedArtist,
+          album: null,
+          playlist: null,
+          query: null,
+          status: null,
+          transcript_source: null,
+          search: null,
+        },
         skip: 0,
         take: LIBRARY_TAKE,
       });
@@ -584,7 +608,10 @@ export function KaraokeJoinPage() {
               const artists = song.artist || "Unknown artist";
               const inQueue = queuedHashes.has(song.file_hash);
               return (
-                <div key={song.file_hash} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  key={song.file_hash}
+                  className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
+                >
                   <div className="flex min-w-0 items-center gap-2">
                     <div className="size-12 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/20">
                       {song.album_art_path ? (
@@ -662,8 +689,11 @@ export function KaraokeJoinPage() {
                   : typeof song.url === "string" && song.url.length > 0
                     ? song.url
                     : JSON.stringify(song);
-              const title = typeof song.name === "string" && song.name ? song.name : "Unknown title";
-              const artists = Array.isArray(song.artists) ? song.artists.join(", ") : "Unknown artist";
+              const title =
+                typeof song.name === "string" && song.name ? song.name : "Unknown title";
+              const artists = Array.isArray(song.artists)
+                ? song.artists.join(", ")
+                : "Unknown artist";
               return (
                 <div
                   key={songId}
@@ -695,7 +725,8 @@ export function KaraokeJoinPage() {
                   typeof song.name === "string" && song.name.trim().length > 0
                     ? song.name
                     : "Unknown title";
-                const progress = typeof entry.progress === "number" ? Math.round(entry.progress) : 0;
+                const progress =
+                  typeof entry.progress === "number" ? Math.round(entry.progress) : 0;
                 return (
                   <div key={`${title}-${idx}`} className="text-xs">
                     <div className="flex items-center justify-between gap-2">
@@ -784,7 +815,9 @@ export function KaraokeJoinPage() {
               variant="outline"
               className="w-full md:w-auto"
               disabled={!canControl}
-              onClick={() => actions.patchSettings({ micMonitoring: !(snapshot?.mic_monitoring ?? false) })}
+              onClick={() =>
+                actions.patchSettings({ micMonitoring: !(snapshot?.mic_monitoring ?? false) })
+              }
             >
               Mic Monitor
             </Button>
@@ -792,7 +825,11 @@ export function KaraokeJoinPage() {
               variant="outline"
               className="w-full md:w-auto"
               disabled={!canControl}
-              onClick={() => actions.patchSettings({ guideVolume: Math.max(0, (snapshot?.guide_volume ?? 0.3) - 0.1) })}
+              onClick={() =>
+                actions.patchSettings({
+                  guideVolume: Math.max(0, (snapshot?.guide_volume ?? 0.3) - 0.1),
+                })
+              }
             >
               Guide -
             </Button>
@@ -800,7 +837,11 @@ export function KaraokeJoinPage() {
               variant="outline"
               className="w-full md:w-auto"
               disabled={!canControl}
-              onClick={() => actions.patchSettings({ guideVolume: Math.min(1, (snapshot?.guide_volume ?? 0.3) + 0.1) })}
+              onClick={() =>
+                actions.patchSettings({
+                  guideVolume: Math.min(1, (snapshot?.guide_volume ?? 0.3) + 0.1),
+                })
+              }
             >
               Guide +
             </Button>
@@ -835,7 +876,10 @@ export function KaraokeJoinPage() {
           <h2 className="text-lg font-semibold">Queue</h2>
           <div className="mt-3 space-y-2">
             {(snapshot?.queue ?? []).map((item) => (
-              <div key={item.id} className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                key={item.id}
+                className="flex flex-col gap-2 rounded-md border p-2 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{item.title}</p>
                   <p className="truncate text-xs text-muted-foreground">
@@ -869,19 +913,44 @@ export function KaraokeJoinPage() {
       </div>
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/95 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-3xl grid-cols-5 gap-2">
-          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-overview")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => scrollToSection("join-overview")}
+          >
             Join
           </Button>
-          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-search")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => scrollToSection("join-search")}
+          >
             Search
           </Button>
-          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-import")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => scrollToSection("join-import")}
+          >
             Import
           </Button>
-          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-controls")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => scrollToSection("join-controls")}
+          >
             Controls
           </Button>
-          <Button size="sm" variant="outline" className="w-full" onClick={() => scrollToSection("join-queue")}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => scrollToSection("join-queue")}
+          >
             Queue
           </Button>
         </div>

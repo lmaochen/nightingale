@@ -23,6 +23,12 @@ export type LibrarySource =
        * `X-Emby-Authorization` header. Generated once at connect time.
        */
       device_id: string;
+      /**
+       * Ids of the Jellyfin libraries (user views) the scan is restricted
+       * to. Empty means "every library" — preserves the pre-selection
+       * behaviour for configs written before this field existed.
+       */
+      library_ids: Array<string>;
     }
   | {
       kind: "navidrome";
@@ -35,4 +41,25 @@ export type LibrarySource =
        * token is `MD5(password + salt)` with a fresh salt per call.
        */
       password: string;
+    }
+  | {
+      kind: "plex";
+      base_url: string;
+      server_name: string;
+      machine_id: string;
+      username: string;
+      /**
+       * PMS access token obtained through hosted PIN linking or entered in
+       * the advanced manual flow. It is encrypted in `config.json` and is
+       * never placed in provider/media URLs.
+       */
+      access_token: string;
+      /**
+       * Stable install identity sent in Plex request headers.
+       */
+      client_id: string;
+      /**
+       * One or more explicitly selected Plex music section keys.
+       */
+      section_ids: Array<string>;
     };

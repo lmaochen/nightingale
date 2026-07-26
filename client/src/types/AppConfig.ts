@@ -37,6 +37,7 @@ export type AppConfig = {
   align_backend: string | null;
   vocal_detection_threshold_pct: number | null;
   auto_analyze: boolean | null;
+  song_list_view: string | null;
   language_overrides: { [key in string]: string } | null;
   /**
    * Enables host/guest karaoke session mode in the web UI.
